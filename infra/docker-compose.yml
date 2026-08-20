@@ -18,5 +18,48 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
 
+  jobmanager:
+    build:
+      context: .
+      dockerfile: flink.Dockerfile
+    container_name: jobmanager
+    ports:
+      - "8081:8081"   # Flink 웹 UI -- http://localhost:8081
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        s3.region: ${AWS_REGION}
+        execution.checkpointing.storage: filesystem
+        state.checkpoints.dir: s3://${S3_BUCKET}/checkpoints/
+    env_file:
+      - ../.env
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro   # 실제 AWS 자격증명(장기 IAM 액세스키) 읽기전용 마운트
+      - ../code/pipelines:/opt/flink/jobs   # raw_zone_consumer.py를 컨테이너 안에서 제출 가능하게
+
+  taskmanager:
+    build:
+      context: .
+      dockerfile: flink.Dockerfile
+    container_name: taskmanager
+    depends_on:
+      - jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 8
+        s3.region: ${AWS_REGION}
+        execution.checkpointing.storage: filesystem
+        state.checkpoints.dir: s3://${S3_BUCKET}/checkpoints/
+    env_file:
+      - ../.env
+    volumes:
+      - ${HOME}/.aws:/root/.aws:ro
+      - ../code/pipelines:/opt/flink/jobs
+
 volumes:
   kafka-data:
