@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from dotenv import load_dotenv
 from kafka import KafkaProducer
@@ -129,7 +129,6 @@ def main() -> None:
     producer = build_producer(args.bootstrap_servers)
 
     prev_event_time: datetime | None = None
-    time_shift = None  # 재생 시작 시각 - 원본 첫 이벤트 시각
     sent = 0
 
     for row in read_events(args.csv_path, limit=args.limit):
@@ -140,20 +139,13 @@ def main() -> None:
             continue
 
         curr_event_time = parse_event_time(row["event_time"])
-        if time_shift is None:
-            time_shift = datetime.now(timezone.utc).replace(tzinfo=None) - curr_event_time
-
         delay = compute_delay_seconds(prev_event_time, curr_event_time, args.speed)
         if delay > 0:
             time.sleep(delay)
         prev_event_time = curr_event_time
 
-        # 멱등성을 위해 event_id는 기존의 event_id 기준으로
         event_id = make_event_id(row)
-
-        shifted_row = dict(row)
-        shifted_row["event_time"] = (curr_event_time + time_shift).strftime("%Y-%m-%d %H:%M:%S UTC")
-        publish(producer, topic, event_id, shifted_row)
+        publish(producer, topic, event_id, row)
         sent += 1
 
         if sent % 100_000 == 0:
