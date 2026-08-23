@@ -1,0 +1,76 @@
+# === 데이터 (용량 문제로 절대 커밋 금지) ===
+data/
+datasets/
+*.csv
+*.csv.gz
+*.parquet
+*.jpg
+*.jpeg
+*.png
+!dashboard/**/*.png
+!dashboard/**/*.jpg
+!assets/**/*.png
+!assets/**/*.jpg
+
+# Kaggle 인증
+kaggle.json
+.kaggle/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# === Spark / Hive / Iceberg 로컬 런타임 산출물 ===
+spark-warehouse/
+metastore_db/
+derby.log
+warehouse/
+checkpoints/
+**/checkpointLocation/
+
+# === Docker / 로컬 인프라 볼륨 ===
+infra/volumes/
+infra/**/data/
+minio-data/
+*.pid
+
+# === Airflow ===
+orchestration/logs/
+orchestration/**/airflow.db
+orchestration/**/airflow-webserver.pid
+orchestration/**/__pycache__/
+
+# === Superset ===
+superset_home/
+superset.db
+
+# === Terraform (향후 AWS IaC 추가 시) ===
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# === 환경변수 / 시크릿 ===
+.env
+.env.*
+*.pem
+credentials.json
+
+# === 로그 ===
+*.log
+logs/
+
+# === OS / 에디터 ===
+.DS_Store
+.vscode/
+.idea/
+
+# === 로컬 전용 문서 (레포에 올리지 않음, README.md만 예외) ===
+docs/
