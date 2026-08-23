@@ -66,10 +66,9 @@ def create_sink_table(t_env: StreamTableEnvironment, raw_path: str) -> None:
             kafka_offset BIGINT,
             kafka_timestamp TIMESTAMP_LTZ(3),
             ingest_ts TIMESTAMP_LTZ(3),
-            raw_date STRING,
-            raw_hour STRING
+            raw_datetime STRING
         )
-        PARTITIONED BY (raw_date, raw_hour)
+        PARTITIONED BY (raw_datetime)
         WITH (
             'connector' = 'filesystem',
             'path' = '{raw_path}',
@@ -82,8 +81,6 @@ def create_sink_table(t_env: StreamTableEnvironment, raw_path: str) -> None:
 
 
 def run_insert(t_env: StreamTableEnvironment) -> None:
-    # .wait()를 부르지 않음: 스트리밍 잡은 끝나지 않으므로 wait하면 flink run -d(detached)여도
-    # 파이썬 드라이버가 블록돼서 CLI가 안 빠져나옴. 제출만 하고 바로 종료.
     t_env.execute_sql("""
         INSERT INTO raw_zone_sink
         SELECT
@@ -91,8 +88,7 @@ def run_insert(t_env: StreamTableEnvironment) -> None:
             brand, price, user_id, user_session, event_id,
             kafka_partition, kafka_offset, kafka_timestamp,
             CURRENT_TIMESTAMP AS ingest_ts,
-            DATE_FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM-dd') AS raw_date,
-            DATE_FORMAT(CURRENT_TIMESTAMP, 'HH') AS raw_hour
+            DATE_FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM-dd-HH') AS raw_datetime
         FROM kafka_source
     """)
 

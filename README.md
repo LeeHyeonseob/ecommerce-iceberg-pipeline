@@ -56,7 +56,7 @@
 | **수집**            | `kafka_producer.py` — `event_type`으로 토픽 분기, `event_id`(sha256) 부여, 발행 간격만 `--speed` 배속으로 압축(`event_time` 값은 원본 유지) | 구현 완료                                 |
 | **버퍼**            | Kafka (KRaft, 단일 브로커) — 토픽 3개 × 파티션 3, `key = user_id`                                                             | 동일 유저 이벤트가 항상 같은 파티션으로                |
 | **스트리밍 처리**       | `raw_zone_consumer.py` (Flink Table API) — **토픽당 독립 잡 1개, 총 3개**                                                   | 한 잡이 죽어도 나머지 zone은 계속 적재              |
-| **Bronze**        | S3 plain Parquet, append-only — `raw/{zone}/raw_date=YYYY-MM-DD/raw_hour=HH/`                                      | 체크포인트 30초 간격, `group-offsets`로 재시작 복구 |
+| **Bronze**        | S3 plain Parquet, append-only — `raw/{zone}/raw_datetime=YYYY-MM-DD-HH/`                                      | 체크포인트 30초 간격, `group-offsets`로 재시작 복구 |
 | **Silver / Gold** | Spark 배치 → Iceberg 테이블 (Glue 카탈로그). DDL은 `code/ddl/`                                                               | 테이블 정의 완료, 적재 잡 작성 예정                 |
 | **조회 / BI**       | Athena(Glue Catalog) → Superset                                                                                    | 비즈니스 KPI 탭 + 운영 메트릭 탭                 |
 | **오케스트레이션**       | Airflow — Silver/Gold 배치 + Iceberg 매니지먼트(컴팩션 / 스냅샷 만료)                                                             | 예정                                    |
