@@ -36,7 +36,7 @@ services:
     env_file:
       - ../.env
     volumes:
-      - ${HOME}/.aws:/root/.aws:ro   # 실제 AWS 자격증명(장기 IAM 액세스키) 읽기전용 마운트
+      # S3 인증은 .env의 AWS_ACCESS_KEY_ID/SECRET 환경변수로 처리 (Hadoop S3A가 ~/.aws 파일을 안 읽음)
       - ../code/pipelines:/opt/flink/jobs   # raw_zone_consumer.py를 컨테이너 안에서 제출 가능하게
 
   taskmanager:
@@ -58,7 +58,6 @@ services:
     env_file:
       - ../.env
     volumes:
-      - ${HOME}/.aws:/root/.aws:ro
       - ../code/pipelines:/opt/flink/jobs
 
 volumes:
