@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS glue.ecommerce_lakehouse.silver_funnel (
-    funnel_key              STRING      COMMENT 'sha256(user_session || product_id). 논리적 PK',
-    user_session            STRING,
+    user_session            STRING      COMMENT 'product_id와 함께 논리적 PK',
     user_id                 STRING      COMMENT 'cross-session 전환 매칭 키',
     product_id              STRING,
     funnel_date             DATE        COMMENT '파티션 키. 퍼널 시작 시점 기준',
@@ -19,11 +18,11 @@ CREATE TABLE IF NOT EXISTS glue.ecommerce_lakehouse.silver_funnel (
 
     view_to_cart_sec        BIGINT,
     cart_to_purchase_sec    BIGINT,
-    view_to_purchase_sec    BIGINT      COMMENT 'cart를 건너뛴 구매(세션 내 구매의 44.8%)도 측정하기 위해 별도 보관',
+    view_to_purchase_sec    BIGINT      COMMENT 'cart를 건너뛴 구매(세션 내 구매의 55.8%)도 측정하기 위해 별도 보관',
 
     converted_later         INT         COMMENT '다른 세션에서 윈도우 내 구매',
     later_purchase_ts       TIMESTAMP,
-    later_purchase_gap_sec  BIGINT      COMMENT 'first_cart_ts로부터 경과 시간',
+    later_purchase_gap_sec  BIGINT      COMMENT 'COALESCE(first_cart_ts, first_view_ts)로부터 경과 시간. carted로 나눠 해석',
 
     cart_price              DOUBLE      COMMENT 'first_cart_ts 시점 가격. 놓친 매출 계산용',
     purchase_price          DOUBLE      COMMENT 'first_purchase_ts 시점 가격',
