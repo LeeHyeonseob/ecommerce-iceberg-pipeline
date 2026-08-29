@@ -1,0 +1,24 @@
+# 수집(Kafka/Flink)과 생명주기가 달라서 분리
+services:
+  superset:
+    build:
+      context: .
+      dockerfile: superset.Dockerfile
+    container_name: superset
+    ports:
+      - "8088:8088"
+    env_file:
+      - ../.env
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    volumes:
+      - ./superset:/app/pythonpath:ro
+      - superset-home:/app/superset_home
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  superset-home:
