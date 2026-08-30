@@ -60,8 +60,12 @@ superset.db
 # === 환경변수 / 시크릿 ===
 .env
 .env.*
+!.env.example
 *.pem
 credentials.json
+
+# === 로컬 실행 스크립트 ===
+*.sh
 
 # === 로그 ===
 *.log
@@ -74,3 +78,5 @@ logs/
 
 # === 로컬 전용 문서 (레포에 올리지 않음, README.md만 예외) ===
 docs/
+**/README.md
+!/README.md
