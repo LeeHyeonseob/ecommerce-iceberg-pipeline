@@ -15,7 +15,7 @@ PACKAGES = ",".join([
 SOURCE_TABLE = "glue.ecommerce_lakehouse.silver_events"
 TARGET_TABLE = "glue.ecommerce_lakehouse.silver_funnel"
 
-CROSS_SESSION_WINDOW_DAYS = 7
+CROSS_SESSION_WINDOW_DAYS = 30
 
 FUNNEL_COLUMNS = [
     "user_session",
