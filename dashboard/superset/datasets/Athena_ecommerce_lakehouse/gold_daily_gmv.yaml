@@ -1,0 +1,133 @@
+table_name: gold_daily_gmv
+main_dttm_col: summary_date
+description: null
+default_endpoint: null
+offset: 0
+cache_timeout: null
+catalog: null
+schema: ecommerce_lakehouse
+sql: null
+params: null
+template_params: null
+filter_select_enabled: true
+fetch_values_predicate: null
+extra: null
+normalize_columns: false
+always_filter_main_dttm: false
+uuid: 686d69bf-cb15-4887-8ede-e2462a16c888
+metrics:
+- metric_name: avg_price
+  verbose_name: "\uD3C9\uADE0 \uB2E8\uAC00"
+  metric_type: null
+  expression: SUM(gmv) / CAST(NULLIF(SUM(purchase_cnt), 0) AS DOUBLE)
+  description: null
+  d3format: ',.2f'
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: purchases
+  verbose_name: "\uAD6C\uB9E4 \uAC74\uC218"
+  metric_type: null
+  expression: SUM(purchase_cnt)
+  description: null
+  d3format: ',d'
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: count
+  verbose_name: COUNT(*)
+  metric_type: count
+  expression: COUNT(*)
+  description: null
+  d3format: null
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: gmv
+  verbose_name: GMV
+  metric_type: null
+  expression: SUM(gmv)
+  description: null
+  d3format: ',.2f'
+  currency: null
+  extra: null
+  warning_text: null
+columns:
+- column_name: unique_buyers
+  verbose_name: "\uACE0\uC720 \uAD6C\uB9E4\uC790(\uC77C\uBCC4, \uD569\uC0B0 \uAE08\
+    \uC9C0)"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: "\uBE44\uAC00\uC0B0. \uB0A0\uC9DC\uBCC4\uB85C SUM\uD558\uBA74 \uC911\
+    \uBCF5 \uACC4\uC0B0\uB41C\uB2E4(\uC2E4\uCE21 53% \uACFC\uB300). \uAE30\uAC04 \uACE0\
+    \uC720 \uAD6C\uB9E4\uC790\uB294 silver_events\uC5D0\uC11C \uB2E4\uC2DC \uC138\uC57C\
+    \ \uD55C\uB2E4"
+  python_date_format: null
+  extra: null
+- column_name: summary_date
+  verbose_name: null
+  is_dttm: true
+  is_active: true
+  type: DATE
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: updated_at
+  verbose_name: null
+  is_dttm: true
+  is_active: true
+  type: TIMESTAMP
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: avg_price
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: gmv
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: purchase_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+version: 1.0.0
+database_uuid: 853541a1-e750-4519-8cd7-d786fb8d636e

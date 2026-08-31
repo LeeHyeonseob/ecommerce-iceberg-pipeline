@@ -1,0 +1,63 @@
+slice_name: "\uD589\uB3D9 \uB2E8\uACC4\uBCC4 \uC138\uC158\xB7\uC0C1\uD488 \uC218"
+description: "\uC21C\uCC28\uB97C \uAC15\uC81C\uD55C \uD37C\uB110\uC774 \uC544\uB2C8\
+  \uB77C (user_session, product_id)\uBCC4 \uD589\uB3D9 \uC874\uC7AC \uC5EC\uBD80\uB97C\
+  \ \uC138\uB294 \uBE44\uAD50 \uCC28\uD2B8\uB2E4. purchase\uAC00 cart\uBCF4\uB2E4\
+  \ \uB9CE\uC744 \uC218 \uC788\uB2E4."
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 7__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 13
+  x_axis: stage
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - funnels
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  order_desc: true
+  row_limit: 100
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  orientation: vertical
+  x_axis_title_margin: 15
+  y_axis_title_margin: 15
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetColors
+  only_total: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: ',d'
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: '{"datasource":{"id":7,"type":"table"},"force":false,"queries":[{"filters":[{"col":"summary_date","op":"TEMPORAL_RANGE","val":"No
+  filter"}],"extras":{"having":"","where":""},"applied_time_extras":{},"columns":[{"columnType":"BASE_AXIS","sqlExpression":"stage","label":"stage","expressionType":"SQL"}],"metrics":["funnels"],"orderby":[["funnels",false]],"annotation_layers":[],"row_limit":100,"series_columns":[],"series_limit":0,"order_desc":true,"url_params":{},"custom_params":{},"custom_form_data":{},"time_offsets":[],"post_processing":[{"operation":"pivot","options":{"index":["stage"],"columns":[],"aggregates":{"funnels":{"operator":"mean"}},"drop_missing_columns":false}},{"operation":"flatten"}]}],"form_data":{"datasource":"7__table","viz_type":"echarts_timeseries_bar","slice_id":13,"x_axis":"stage","x_axis_sort_asc":true,"x_axis_sort_series":"name","x_axis_sort_series_ascending":true,"metrics":["funnels"],"groupby":[],"adhoc_filters":[{"clause":"WHERE","subject":"summary_date","operator":"TEMPORAL_RANGE","comparator":"No
+  filter","expressionType":"SIMPLE"}],"order_desc":true,"row_limit":100,"truncate_metric":true,"show_empty_columns":true,"comparison_type":"values","annotation_layers":[],"forecastPeriods":10,"forecastInterval":0.8,"orientation":"vertical","x_axis_title_margin":15,"y_axis_title_margin":15,"y_axis_title_position":"Left","sort_series_type":"sum","color_scheme":"supersetColors","only_total":true,"show_legend":true,"legendType":"scroll","legendOrientation":"top","x_axis_time_format":"smart_date","y_axis_format":",d","truncateXAxis":true,"y_axis_bounds":[null,null],"rich_tooltip":true,"showTooltipTotal":true,"showTooltipPercentage":true,"tooltipTimeFormat":"smart_date","extra_form_data":{},"dashboards":[1],"force":false,"result_format":"json","result_type":"full"},"result_format":"json","result_type":"full"}'
+cache_timeout: null
+uuid: 254ce308-0cd5-4500-8ff2-c9d649eaef32
+version: 1.0.0
+dataset_uuid: 646196b9-441b-42c5-9b69-ace95e8012db

@@ -1,0 +1,667 @@
+dashboard_title: "\uC774\uCEE4\uBA38\uC2A4 \uB808\uC774\uD06C\uD558\uC6B0\uC2A4"
+description: "\uBE44\uC988\uB2C8\uC2A4 \uC131\uACFC\uC640 \uB370\uC774\uD130 \uD30C\
+  \uC774\uD504\uB77C\uC778 \uC6B4\uC601 \uC0C1\uD0DC\uB97C \uBD84\uB9AC\uD574 \uBCF4\
+  \uB294 \uB300\uC2DC\uBCF4\uB4DC"
+css: null
+slug: ecommerce-lakehouse
+certified_by: null
+certification_details: null
+published: true
+uuid: 21c48874-92de-40e9-a00d-ab566a72841e
+position:
+  DASHBOARD_VERSION_KEY: v2
+  ROOT_ID:
+    type: ROOT
+    id: ROOT_ID
+    children:
+    - TABS-MAIN
+  HEADER_ID:
+    type: HEADER
+    id: HEADER_ID
+    meta:
+      text: "\uC774\uCEE4\uBA38\uC2A4 \uB808\uC774\uD06C\uD558\uC6B0\uC2A4"
+  TABS-MAIN:
+    type: TABS
+    id: TABS-MAIN
+    children:
+    - TAB-BUSINESS
+    - TAB-OPERATIONS
+    parents:
+    - ROOT_ID
+    meta: {}
+  TAB-BUSINESS:
+    type: TAB
+    id: TAB-BUSINESS
+    children:
+    - ROW-B1
+    - ROW-B2
+    - ROW-B3
+    - ROW-B4
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    meta:
+      text: "\uBE44\uC988\uB2C8\uC2A4 KPI"
+  TAB-OPERATIONS:
+    type: TAB
+    id: TAB-OPERATIONS
+    children:
+    - ROW-O1
+    - ROW-O2
+    - ROW-O3
+    - ROW-O4
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    meta:
+      text: "\uC6B4\uC601 \uD488\uC9C8"
+  ROW-B1:
+    type: ROW
+    id: ROW-B1
+    children:
+    - CHART-12
+    - CHART-2
+    - CHART-15
+    - CHART-3
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-12:
+    type: CHART
+    id: CHART-12
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B1
+    meta:
+      chartId: 11
+      width: 3
+      height: 32
+      sliceName: "\uC120\uD0DD \uAE30\uAC04 GMV"
+      uuid: 0ac91d36-0993-40a6-ba31-0808e3acd8a5
+  CHART-2:
+    type: CHART
+    id: CHART-2
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B1
+    meta:
+      chartId: 15
+      width: 3
+      height: 32
+      sliceName: "\uAD6C\uB9E4 \uC774\uBCA4\uD2B8 \uC218"
+      uuid: bc73362c-2c72-4deb-82d2-c12e7e85a162
+  CHART-15:
+    type: CHART
+    id: CHART-15
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B1
+    meta:
+      chartId: 4
+      width: 3
+      height: 32
+      sliceName: "Cart\u2192Purchase \uC804\uD658\uC728"
+      uuid: b8ad9d34-3ac1-43b9-9aec-dc1ab162f08b
+  CHART-3:
+    type: CHART
+    id: CHART-3
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B1
+    meta:
+      chartId: 12
+      width: 3
+      height: 32
+      sliceName: "Cart 미전환율(최대 30일 전환 반영)"
+      uuid: 076242cf-ec3e-4ff4-afa0-bbfbf61a1d2e
+  ROW-B2:
+    type: ROW
+    id: ROW-B2
+    children:
+    - CHART-13
+    - CHART-6
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-13:
+    type: CHART
+    id: CHART-13
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B2
+    meta:
+      chartId: 3
+      width: 6
+      height: 44
+      sliceName: "\uC77C\uBCC4 GMV \uCD94\uC774"
+      uuid: 13991553-0fe5-4011-931e-d6c6b3c1bffb
+  CHART-6:
+    type: CHART
+    id: CHART-6
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B2
+    meta:
+      chartId: 1
+      width: 6
+      height: 44
+      sliceName: "Cart\u2192Purchase \uC804\uD658\uC728 \uCD94\uC774"
+      uuid: 87be9f05-0cfa-461e-b9ad-9194218750c9
+  ROW-B3:
+    type: ROW
+    id: ROW-B3
+    children:
+    - CHART-5
+    - CHART-7
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-5:
+    type: CHART
+    id: CHART-5
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B3
+    meta:
+      chartId: 13
+      width: 6
+      height: 44
+      sliceName: "\uD589\uB3D9 \uB2E8\uACC4\uBCC4 \uC138\uC158\xB7\uC0C1\uD488 \uC218"
+      uuid: 254ce308-0cd5-4500-8ff2-c9d649eaef32
+  CHART-7:
+    type: CHART
+    id: CHART-7
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B3
+    meta:
+      chartId: 6
+      width: 6
+      height: 44
+      sliceName: "\uCE74\uD14C\uACE0\uB9AC\uBCC4 GMV"
+      uuid: 4476878c-6541-47f7-bf36-20955f2fc678
+  ROW-B4:
+    type: ROW
+    id: ROW-B4
+    children:
+    - CHART-4
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-4:
+    type: CHART
+    id: CHART-4
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-BUSINESS
+    - ROW-B4
+    meta:
+      chartId: 14
+      width: 12
+      height: 40
+      sliceName: "\uBBF8\uC804\uD658 \uC7A5\uBC14\uAD6C\uB2C8 \uAE08\uC561 \uCD94\uC774"
+      uuid: c0281aca-c533-415d-b852-939e65374db7
+  ROW-O1:
+    type: ROW
+    id: ROW-O1
+    children:
+    - CHART-16
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-16:
+    type: CHART
+    id: CHART-16
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O1
+    meta:
+      chartId: 10
+      width: 12
+      height: 40
+      sliceName: "\uC77C\uBCC4 \uC774\uBCA4\uD2B8 \uD589 \uC218"
+      uuid: 202c55c2-7a71-4470-ac9a-a09a72877efb
+  ROW-O2:
+    type: ROW
+    id: ROW-O2
+    children:
+    - CHART-17
+    - CHART-18
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-17:
+    type: CHART
+    id: CHART-17
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O2
+    meta:
+      chartId: 9
+      width: 6
+      height: 40
+      sliceName: "\uCE74\uD14C\uACE0\uB9AC\xB7\uBE0C\uB79C\uB4DC NULL \uBE44\uC728"
+      uuid: 9ea702d4-fad6-48a0-beab-7900977dd453
+  CHART-18:
+    type: CHART
+    id: CHART-18
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O2
+    meta:
+      chartId: 8
+      width: 6
+      height: 40
+      sliceName: "price \u2264 0 \uC774\uBCA4\uD2B8"
+      uuid: c75f6153-0be1-44ba-ac3a-103d9d189b2f
+  ROW-O3:
+    type: ROW
+    id: ROW-O3
+    children:
+    - CHART-10
+    - CHART-11
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-10:
+    type: CHART
+    id: CHART-10
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O3
+    meta:
+      chartId: 5
+      width: 6
+      height: 40
+      sliceName: "\uC138\uC158 \uB0B4 view \uC5C6\uB294 purchase"
+      uuid: a5ed99a4-5fa9-49e6-9cfb-02db78638643
+  CHART-11:
+    type: CHART
+    id: CHART-11
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O3
+    meta:
+      chartId: 2
+      width: 6
+      height: 40
+      sliceName: "\uD30C\uC774\uD504\uB77C\uC778 \uC9C0\uC5F0 (\uCD08)"
+      uuid: 364c4fef-8cb4-4020-b1ad-6f810affff4c
+  ROW-O4:
+    type: ROW
+    id: ROW-O4
+    children:
+    - CHART-14
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-14:
+    type: CHART
+    id: CHART-14
+    children: []
+    parents:
+    - ROOT_ID
+    - TABS-MAIN
+    - TAB-OPERATIONS
+    - ROW-O4
+    meta:
+      chartId: 7
+      width: 12
+      height: 45
+      sliceName: "Iceberg \uD14C\uC774\uBE14 \uD5EC\uC2A4"
+      uuid: c2e2c920-c9b0-405c-a248-0c1bc70e1e13
+metadata:
+  chart_configuration:
+    '1':
+      id: 1
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '2':
+      id: 2
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '3':
+      id: 3
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '5':
+      id: 5
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '6':
+      id: 6
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '7':
+      id: 7
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '8':
+      id: 8
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '9':
+      id: 9
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 10
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '10':
+      id: 10
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 11
+        - 12
+        - 13
+        - 14
+        - 15
+    '13':
+      id: 13
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 14
+        - 15
+    '14':
+      id: 14
+      crossFilters:
+        scope: global
+        chartsInScope:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+        - 11
+        - 12
+        - 13
+        - 15
+  global_chart_configuration:
+    scope:
+      rootPath:
+      - ROOT_ID
+      excluded: []
+    chartsInScope:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+  native_filter_configuration:
+  - id: NATIVE_FILTER-DATE
+    controlValues:
+      enableEmptyFilter: false
+    name: "\uC870\uD68C \uAE30\uAC04"
+    filterType: filter_time
+    targets:
+    - {}
+    defaultDataMask:
+      extraFormData:
+        time_range: '2019-10-01 : 2019-11-01'
+      filterState:
+        value: '2019-10-01 : 2019-11-01'
+    cascadeParentIds: []
+    scope:
+      rootPath:
+      - ROOT_ID
+      excluded:
+      - 7
+    type: NATIVE_FILTER
+    description: "\uAE30\uBCF8 \uC870\uD68C \uBC94\uC704\uB294 2019\uB144 10\uC6D4\
+      \ \uC804\uCCB4\uC785\uB2C8\uB2E4."
+    chartsInScope:
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 10
+    - 11
+    - 12
+    - 13
+    - 15
+    - 16
+    - 17
+    - 18
+    tabsInScope:
+    - TAB-BUSINESS
+    - TAB-OPERATIONS
+  filter_bar_orientation: HORIZONTAL
+  map_label_colors:
+    purchase_without_view: '#1FA8C9'
+    "\uC774\uBCA4\uD2B8 \uD589 \uC218": '#1FA8C9'
+    null_category_rate: '#1FA8C9'
+    "\uBE0C\uB79C\uB4DC NULL \uBE44\uC728": '#454E7C'
+    "price \u2264 0": '#1FA8C9'
+    "\uC77C \uCD5C\uB300": '#1FA8C9'
+    "\uC2DC\uAC04\uB300 \uCD5C\uB300 p95": '#454E7C'
+  timed_refresh_immune_slices: []
+  expanded_slices: {}
+  refresh_frequency: 0
+  color_scheme: ''
+  label_colors: {}
+  shared_label_colors: []
+  color_scheme_domain: []
+  cross_filters_enabled: false
+version: 1.0.0

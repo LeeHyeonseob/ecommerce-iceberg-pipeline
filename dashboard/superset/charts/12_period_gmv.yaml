@@ -1,0 +1,41 @@
+slice_name: "\uC120\uD0DD \uAE30\uAC04 GMV"
+description: "\uC120\uD0DD\uD55C \uAE30\uAC04\uC758 purchase \uC774\uBCA4\uD2B8 price\
+  \ \uD569. \uD1B5\uD654 \uB2E8\uC704\uAC00 \uD655\uC815\uB418\uC9C0 \uC54A\uC544\
+  \ \uD1B5\uD654 \uAE30\uD638\uB97C \uD45C\uC2DC\uD558\uC9C0 \uC54A\uB294\uB2E4."
+certified_by: null
+certification_details: null
+viz_type: big_number_total
+params:
+  datasource: 6__table
+  viz_type: big_number_total
+  slice_id: 1
+  metric: gmv
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  header_font_size: 0.4
+  subheader_font_size: 0.15
+  y_axis_format: ',d'
+  time_format: smart_date
+  conditional_formatting: []
+  extra_form_data: {}
+  dashboards: []
+  annotation_layers: []
+query_context: '{"datasource": {"id": 6, "type": "table"}, "force": false, "queries":
+  [{"filters": [{"col": "summary_date", "op": "TEMPORAL_RANGE", "val": "No filter"}],
+  "extras": {"having": "", "where": ""}, "applied_time_extras": {}, "columns": [],
+  "metrics": ["gmv"], "annotation_layers": [], "series_limit": 0, "order_desc": true,
+  "url_params": {}, "custom_params": {}, "custom_form_data": {}}], "form_data": {"datasource":
+  "6__table", "viz_type": "big_number_total", "slice_id": 1, "metric": "gmv", "adhoc_filters":
+  [{"clause": "WHERE", "subject": "summary_date", "operator": "TEMPORAL_RANGE", "comparator":
+  "No filter", "expressionType": "SIMPLE"}], "header_font_size": 0.4, "subheader_font_size":
+  0.15, "y_axis_format": ",d", "time_format": "smart_date", "conditional_formatting":
+  [], "extra_form_data": {}, "dashboards": [], "force": false, "result_format": "json",
+  "result_type": "full"}, "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: 0ac91d36-0993-40a6-ba31-0808e3acd8a5
+version: 1.0.0
+dataset_uuid: 686d69bf-cb15-4887-8ede-e2462a16c888

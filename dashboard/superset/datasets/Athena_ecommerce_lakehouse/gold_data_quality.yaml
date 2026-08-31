@@ -1,0 +1,222 @@
+table_name: gold_data_quality
+main_dttm_col: summary_date
+description: null
+default_endpoint: null
+offset: 0
+cache_timeout: null
+catalog: null
+schema: ecommerce_lakehouse
+sql: null
+params: null
+template_params: null
+filter_select_enabled: true
+fetch_values_predicate: null
+extra: null
+normalize_columns: false
+always_filter_main_dttm: false
+uuid: 0b0e13ac-04a0-4555-95c6-dfb9c5523ab5
+metrics:
+- metric_name: null_category_rate
+  verbose_name: "\uCE74\uD14C\uACE0\uB9AC NULL \uBE44\uC728"
+  metric_type: null
+  expression: SUM(total_events * null_category_rate) / NULLIF(SUM(total_events), 0)
+  description: null
+  d3format: .2%
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: cart_view_ratio
+  verbose_name: Cart/View
+  metric_type: null
+  expression: CAST(SUM(cart_cnt) AS DOUBLE) / NULLIF(SUM(view_cnt), 0)
+  description: null
+  d3format: .2%
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: purchase_view_ratio
+  verbose_name: Purchase/View
+  metric_type: null
+  expression: CAST(SUM(purchase_cnt) AS DOUBLE) / NULLIF(SUM(view_cnt), 0)
+  description: null
+  d3format: .2%
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: purchase_without_view
+  verbose_name: "view \uC5C6\uB294 \uAD6C\uB9E4"
+  metric_type: null
+  expression: SUM(purchase_without_view_cnt)
+  description: null
+  d3format: ',d'
+  currency: null
+  extra: null
+  warning_text: null
+- metric_name: count
+  verbose_name: COUNT(*)
+  metric_type: count
+  expression: COUNT(*)
+  description: null
+  d3format: null
+  currency: null
+  extra: null
+  warning_text: null
+columns:
+- column_name: summary_date
+  verbose_name: null
+  is_dttm: true
+  is_active: true
+  type: DATE
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: updated_at
+  verbose_name: null
+  is_dttm: true
+  is_active: true
+  type: TIMESTAMP
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: null_brand_rate
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: null_category_rate
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: purchase_view_ratio
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: cart_view_ratio
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: FLOAT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: purchase_without_view_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: price_nonpositive_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: price_null_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: purchase_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: cart_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: total_events
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: view_cnt
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+version: 1.0.0
+database_uuid: 853541a1-e750-4519-8cd7-d786fb8d636e

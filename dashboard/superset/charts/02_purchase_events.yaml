@@ -1,0 +1,32 @@
+slice_name: "\uAD6C\uB9E4 \uC774\uBCA4\uD2B8 \uC218"
+description: "order_id\uC640 quantity\uAC00 \uC5C6\uC73C\uBBC0\uB85C \uC2E4\uC81C\
+  \ \uC8FC\uBB38 \uAC74\uC218\uAC00 \uC544\uB2CC purchase \uC774\uBCA4\uD2B8 \uC218\
+  \uB2E4."
+certified_by: null
+certification_details: null
+viz_type: big_number_total
+params:
+  datasource: 6__table
+  viz_type: big_number_total
+  slice_id: 15
+  metric: purchases
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  header_font_size: 0.4
+  subheader_font_size: 0.15
+  y_axis_format: ',d'
+  time_format: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: '{"datasource":{"id":6,"type":"table"},"force":false,"queries":[{"filters":[{"col":"summary_date","op":"TEMPORAL_RANGE","val":"No
+  filter"}],"extras":{"having":"","where":""},"applied_time_extras":{},"columns":[],"metrics":["purchases"],"annotation_layers":[],"series_limit":0,"order_desc":true,"url_params":{},"custom_params":{},"custom_form_data":{}}],"form_data":{"datasource":"6__table","viz_type":"big_number_total","slice_id":15,"metric":"purchases","adhoc_filters":[{"clause":"WHERE","subject":"summary_date","operator":"TEMPORAL_RANGE","comparator":"No
+  filter","expressionType":"SIMPLE"}],"header_font_size":0.4,"subheader_font_size":0.15,"y_axis_format":",d","time_format":"smart_date","extra_form_data":{},"dashboards":[1],"force":false,"result_format":"json","result_type":"full"},"result_format":"json","result_type":"full"}'
+cache_timeout: null
+uuid: bc73362c-2c72-4deb-82d2-c12e7e85a162
+version: 1.0.0
+dataset_uuid: 686d69bf-cb15-4887-8ede-e2462a16c888

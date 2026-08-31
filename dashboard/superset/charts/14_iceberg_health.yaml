@@ -1,0 +1,46 @@
+slice_name: "Iceberg \uD14C\uC774\uBE14 \uD5EC\uC2A4"
+description: "\uD604\uC7AC Iceberg \uC2A4\uB0C5\uC0F7\uC758 \uB370\uC774\uD130 \uD30C\
+  \uC77C \uC218, \uD3C9\uADE0 \uD30C\uC77C \uD06C\uAE30, \uD589 \uC218, \uCD5C\uC885\
+  \ \uAC31\uC2E0 \uC2DC\uAC01."
+certified_by: null
+certification_details: null
+viz_type: table
+params:
+  datasource: 2__table
+  viz_type: table
+  query_mode: raw
+  groupby: []
+  temporal_columns_lookup:
+    last_updated_at: true
+  metrics: []
+  all_columns:
+  - table_name
+  - file_count
+  - avg_file_mb
+  - row_count
+  - last_updated_at
+  percent_metrics: []
+  adhoc_filters: []
+  order_by_cols: []
+  row_limit: 1000
+  table_timestamp_format: smart_date
+  allow_render_html: true
+  show_cell_bars: true
+  annotation_layers: []
+query_context: '{"datasource": {"id": 2, "type": "table"}, "force": false, "queries":
+  [{"filters": [], "extras": {"having": "", "where": ""}, "applied_time_extras": {},
+  "columns": ["table_name", "file_count", "avg_file_mb", "row_count", "last_updated_at"],
+  "orderby": [], "annotation_layers": [], "row_limit": 1000, "series_limit": 0, "order_desc":
+  true, "url_params": {}, "custom_params": {}, "custom_form_data": {}, "post_processing":
+  []}], "form_data": {"datasource": "2__table", "viz_type": "table", "query_mode":
+  "raw", "groupby": [], "temporal_columns_lookup": {"last_updated_at": true}, "metrics":
+  [], "all_columns": ["table_name", "file_count", "avg_file_mb", "row_count", "last_updated_at"],
+  "percent_metrics": [], "adhoc_filters": [], "order_by_cols": [], "row_limit": 1000,
+  "table_timestamp_format": "smart_date", "allow_render_html": true, "show_cell_bars":
+  true, "extra_form_data": {}, "dashboards": [], "force": false, "result_format":
+  "json", "result_type": "full", "include_time": false}, "result_format": "json",
+  "result_type": "full"}'
+cache_timeout: null
+uuid: c2e2c920-c9b0-405c-a248-0c1bc70e1e13
+version: 1.0.0
+dataset_uuid: 100f87a2-b88e-481d-833f-ccabadfb4273

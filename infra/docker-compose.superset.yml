@@ -1,5 +1,49 @@
 # 수집(Kafka/Flink)과 생명주기가 달라서 분리
 services:
+  postgres:
+    image: postgres:16
+    container_name: superset-postgres
+    env_file:
+      - ../.env
+    volumes:
+      - superset-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-bookworm
+    container_name: superset-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - superset-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  superset-init:
+    build:
+      context: .
+      dockerfile: superset.Dockerfile
+    container_name: superset-init
+    env_file:
+      - ../.env
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    volumes:
+      - ./superset:/app/pythonpath:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["sh", "-c", "superset db upgrade && superset init"]
+    restart: "no"
+
   superset:
     build:
       context: .
@@ -13,7 +57,9 @@ services:
       SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
     volumes:
       - ./superset:/app/pythonpath:ro
-      - superset-home:/app/superset_home
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 15s
@@ -21,4 +67,5 @@ services:
       retries: 20
 
 volumes:
-  superset-home:
+  superset-postgres-data:
+  superset-redis-data:

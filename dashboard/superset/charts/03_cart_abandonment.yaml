@@ -1,0 +1,30 @@
+slice_name: "Cart 미전환율(최대 30일 전환 반영)"
+description: "cross-session 구매를 최대 30일까지 반영한 미전환율. 데이터 종료일에 가까운 퍼널은 관측 기간이 짧아 실제 이탈률보다 높게 계산될 수 있다."
+certified_by: null
+certification_details: null
+viz_type: big_number_total
+params:
+  datasource: 5__table
+  viz_type: big_number_total
+  slice_id: 12
+  metric: abandon_rate_final
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  header_font_size: 0.4
+  subheader_font_size: 0.15
+  y_axis_format: .2%
+  time_format: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: '{"datasource":{"id":5,"type":"table"},"force":false,"queries":[{"filters":[{"col":"summary_date","op":"TEMPORAL_RANGE","val":"No
+  filter"}],"extras":{"having":"","where":""},"applied_time_extras":{},"columns":[],"metrics":["abandon_rate_final"],"annotation_layers":[],"series_limit":0,"order_desc":true,"url_params":{},"custom_params":{},"custom_form_data":{}}],"form_data":{"datasource":"5__table","viz_type":"big_number_total","slice_id":12,"metric":"abandon_rate_final","adhoc_filters":[{"clause":"WHERE","subject":"summary_date","operator":"TEMPORAL_RANGE","comparator":"No
+  filter","expressionType":"SIMPLE"}],"header_font_size":0.4,"subheader_font_size":0.15,"y_axis_format":".2%","time_format":"smart_date","extra_form_data":{},"dashboards":[1],"force":false,"result_format":"json","result_type":"full"},"result_format":"json","result_type":"full"}'
+cache_timeout: null
+uuid: 076242cf-ec3e-4ff4-afa0-bbfbf61a1d2e
+version: 1.0.0
+dataset_uuid: 253bb911-82d4-47e5-abfa-55ef7fa5b016

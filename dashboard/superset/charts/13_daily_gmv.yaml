@@ -1,0 +1,71 @@
+slice_name: "\uC77C\uBCC4 GMV \uCD94\uC774"
+description: "\uC77C\uBCC4 purchase \uC774\uBCA4\uD2B8 price \uD569. \uB300\uC2DC\uBCF4\
+  \uB4DC \uAE30\uAC04 \uD544\uD130\uAC00 \uC801\uC6A9\uB41C\uB2E4."
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_line
+params:
+  datasource: 6__table
+  viz_type: echarts_timeseries_line
+  slice_id: 12
+  x_axis: summary_date
+  metrics:
+  - gmv
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    comparator: No filter
+    expressionType: SIMPLE
+    operator: TEMPORAL_RANGE
+    subject: summary_date
+  row_limit: 10000
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  x_axis_title_margin: 15
+  y_axis_title_margin: 15
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetColors
+  seriesType: line
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  y_axis_format: ',d'
+  truncateXAxis: true
+  extra_form_data: {}
+  dashboards: []
+query_context: '{"datasource": {"id": 6, "type": "table"}, "force": false, "queries":
+  [{"filters": [{"col": "summary_date", "op": "TEMPORAL_RANGE", "val": "No filter"}],
+  "extras": {"having": "", "where": ""}, "applied_time_extras": {}, "columns": [{"columnType":
+  "BASE_AXIS", "sqlExpression": "summary_date", "label": "summary_date", "expressionType":
+  "SQL"}], "metrics": ["gmv"], "orderby": [["gmv", false]], "annotation_layers": [],
+  "row_limit": 10000, "series_columns": [], "series_limit": 0, "order_desc": true,
+  "url_params": {}, "custom_params": {}, "custom_form_data": {}, "time_offsets": [],
+  "post_processing": [{"operation": "pivot", "options": {"index": ["summary_date"],
+  "columns": [], "aggregates": {"gmv": {"operator": "mean"}}, "drop_missing_columns":
+  false}}, {"operation": "flatten"}]}], "form_data": {"datasource": "6__table", "viz_type":
+  "echarts_timeseries_line", "slice_id": 12, "x_axis": "summary_date", "metrics":
+  ["gmv"], "groupby": [], "adhoc_filters": [{"clause": "WHERE", "comparator": "No
+  filter", "expressionType": "SIMPLE", "operator": "TEMPORAL_RANGE", "subject": "summary_date"}],
+  "row_limit": 10000, "truncate_metric": true, "show_empty_columns": true, "comparison_type":
+  "values", "annotation_layers": [], "forecastPeriods": 10, "forecastInterval": 0.8,
+  "x_axis_title_margin": 15, "y_axis_title_margin": 15, "y_axis_title_position": "Left",
+  "sort_series_type": "sum", "color_scheme": "supersetColors", "seriesType": "line",
+  "show_legend": true, "legendType": "scroll", "legendOrientation": "top", "x_axis_time_format":
+  "smart_date", "rich_tooltip": true, "showTooltipTotal": true, "showTooltipPercentage":
+  true, "tooltipTimeFormat": "smart_date", "y_axis_format": ",d", "truncateXAxis":
+  true, "extra_form_data": {}, "dashboards": [], "force": false, "result_format":
+  "json", "result_type": "full"}, "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: 13991553-0fe5-4011-931e-d6c6b3c1bffb
+version: 1.0.0
+dataset_uuid: 686d69bf-cb15-4887-8ede-e2462a16c888

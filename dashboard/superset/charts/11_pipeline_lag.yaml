@@ -1,0 +1,114 @@
+slice_name: "\uD30C\uC774\uD504\uB77C\uC778 \uC9C0\uC5F0 (\uCD08)"
+description: "Kafka \uBA54\uC2DC\uC9C0 \uAE30\uB85D \uC2DC\uAC01\uBD80\uD130 Flink\
+  \ \uCC98\uB9AC \uC2DC\uAC01\uAE4C\uC9C0\uC758 \uC9C0\uC5F0. \uC77C\uBCC4\uB85C \uC2DC\
+  \uAC04\uB300 p95\uC758 \uCD5C\uB313\uAC12\uACFC \uC804\uCCB4 \uCD5C\uB313\uAC12\uC744\
+  \ \uBCF4\uC5EC\uC900\uB2E4. \uD604\uC7AC \uAC12\uC740 \uBC8C\uD06C \uC7AC\uC0DD\
+  \ \uBD80\uD558\uC5D0\uC11C \uCE21\uC815\uB41C \uACB0\uACFC\uB2E4."
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_line
+params:
+  datasource: 1__table
+  viz_type: echarts_timeseries_line
+  slice_id: 2
+  x_axis: summary_date
+  time_grain_sqla: P1D
+  x_axis_sort_asc: true
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - aggregate: MAX
+    column:
+      column_name: lag_p95
+    expressionType: SIMPLE
+    label: "\uC2DC\uAC04\uB300 \uCD5C\uB300 p95"
+    optionName: metric_lag_p95_max
+  - aggregate: MAX
+    column:
+      column_name: lag_max
+    expressionType: SIMPLE
+    label: "\uC77C \uCD5C\uB300"
+    optionName: metric_lag_max_max
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  order_desc: true
+  row_limit: 10000
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  x_axis_title_margin: 15
+  y_axis_title_margin: 15
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetColors
+  seriesType: line
+  only_total: true
+  opacity: 0.2
+  markerSize: 6
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  y_axis_format: ',.2f'
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: "{\"datasource\":{\"id\":1,\"type\":\"table\"},\"force\":false,\"queries\"\
+  :[{\"filters\":[{\"col\":\"summary_date\",\"op\":\"TEMPORAL_RANGE\",\"val\":\"No\
+  \ filter\"}],\"extras\":{\"time_grain_sqla\":\"P1D\",\"having\":\"\",\"where\":\"\
+  \"},\"applied_time_extras\":{},\"columns\":[{\"timeGrain\":\"P1D\",\"columnType\"\
+  :\"BASE_AXIS\",\"sqlExpression\":\"summary_date\",\"label\":\"summary_date\",\"\
+  expressionType\":\"SQL\"}],\"metrics\":[{\"aggregate\":\"MAX\",\"column\":{\"column_name\"\
+  :\"lag_p95\"},\"expressionType\":\"SIMPLE\",\"label\":\"\uC2DC\uAC04\uB300 \uCD5C\
+  \uB300 p95\",\"optionName\":\"metric_lag_p95_max\"},{\"aggregate\":\"MAX\",\"column\"\
+  :{\"column_name\":\"lag_max\"},\"expressionType\":\"SIMPLE\",\"label\":\"\uC77C\
+  \ \uCD5C\uB300\",\"optionName\":\"metric_lag_max_max\"}],\"orderby\":[[{\"aggregate\"\
+  :\"MAX\",\"column\":{\"column_name\":\"lag_p95\"},\"expressionType\":\"SIMPLE\"\
+  ,\"label\":\"\uC2DC\uAC04\uB300 \uCD5C\uB300 p95\",\"optionName\":\"metric_lag_p95_max\"\
+  },false]],\"annotation_layers\":[],\"row_limit\":10000,\"series_columns\":[],\"\
+  series_limit\":0,\"order_desc\":true,\"url_params\":{},\"custom_params\":{},\"custom_form_data\"\
+  :{},\"time_offsets\":[],\"post_processing\":[{\"operation\":\"pivot\",\"options\"\
+  :{\"index\":[\"summary_date\"],\"columns\":[],\"aggregates\":{\"\uC2DC\uAC04\uB300\
+  \ \uCD5C\uB300 p95\":{\"operator\":\"mean\"},\"\uC77C \uCD5C\uB300\":{\"operator\"\
+  :\"mean\"}},\"drop_missing_columns\":false}},{\"operation\":\"flatten\"}]}],\"form_data\"\
+  :{\"datasource\":\"1__table\",\"viz_type\":\"echarts_timeseries_line\",\"slice_id\"\
+  :2,\"x_axis\":\"summary_date\",\"time_grain_sqla\":\"P1D\",\"x_axis_sort_asc\":true,\"\
+  x_axis_sort_series\":\"name\",\"x_axis_sort_series_ascending\":true,\"metrics\"\
+  :[{\"aggregate\":\"MAX\",\"column\":{\"column_name\":\"lag_p95\"},\"expressionType\"\
+  :\"SIMPLE\",\"label\":\"\uC2DC\uAC04\uB300 \uCD5C\uB300 p95\",\"optionName\":\"\
+  metric_lag_p95_max\"},{\"aggregate\":\"MAX\",\"column\":{\"column_name\":\"lag_max\"\
+  },\"expressionType\":\"SIMPLE\",\"label\":\"\uC77C \uCD5C\uB300\",\"optionName\"\
+  :\"metric_lag_max_max\"}],\"groupby\":[],\"adhoc_filters\":[{\"clause\":\"WHERE\"\
+  ,\"subject\":\"summary_date\",\"operator\":\"TEMPORAL_RANGE\",\"comparator\":\"\
+  No filter\",\"expressionType\":\"SIMPLE\"}],\"order_desc\":true,\"row_limit\":10000,\"\
+  truncate_metric\":true,\"show_empty_columns\":true,\"comparison_type\":\"values\"\
+  ,\"annotation_layers\":[],\"forecastPeriods\":10,\"forecastInterval\":0.8,\"x_axis_title_margin\"\
+  :15,\"y_axis_title_margin\":15,\"y_axis_title_position\":\"Left\",\"sort_series_type\"\
+  :\"sum\",\"color_scheme\":\"supersetColors\",\"seriesType\":\"line\",\"only_total\"\
+  :true,\"opacity\":0.2,\"markerSize\":6,\"show_legend\":true,\"legendType\":\"scroll\"\
+  ,\"legendOrientation\":\"top\",\"x_axis_time_format\":\"smart_date\",\"rich_tooltip\"\
+  :true,\"showTooltipTotal\":true,\"showTooltipPercentage\":true,\"tooltipTimeFormat\"\
+  :\"smart_date\",\"y_axis_format\":\",.2f\",\"truncateXAxis\":true,\"y_axis_bounds\"\
+  :[null,null],\"extra_form_data\":{},\"dashboards\":[1],\"force\":false,\"result_format\"\
+  :\"json\",\"result_type\":\"full\"},\"result_format\":\"json\",\"result_type\":\"\
+  full\"}"
+cache_timeout: null
+uuid: 364c4fef-8cb4-4020-b1ad-6f810affff4c
+version: 1.0.0
+dataset_uuid: 6c5b057c-f4a9-406d-aba6-0d6c47a29dcf

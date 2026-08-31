@@ -1,0 +1,71 @@
+slice_name: "\uCE74\uD14C\uACE0\uB9AC\uBCC4 GMV"
+description: "'unknown'\uC740 \uCE74\uD14C\uACE0\uB9AC \uACB0\uCE21\uC744 \uC228\uAE30\
+  \uC9C0 \uC54A\uACE0 \uB178\uCD9C\uD55C \uAC12\uC774\uB2E4. \uD1B5\uD654 \uB2E8\uC704\
+  \uB294 \uC6D0\uBCF8 \uBA54\uD0C0\uB370\uC774\uD130\uC5D0\uC11C \uD655\uC815\uB418\
+  \uC9C0 \uC54A\uC544 \uAE30\uD638\uB97C \uD45C\uC2DC\uD558\uC9C0 \uC54A\uB294\uB2E4\
+  ."
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 3__table
+  viz_type: echarts_timeseries_bar
+  slice_id: 6
+  x_axis: dim_value
+  xAxisForceCategorical: true
+  x_axis_sort: GMV
+  x_axis_sort_asc: false
+  x_axis_sort_series: name
+  x_axis_sort_series_ascending: true
+  metrics:
+  - aggregate: SUM
+    column:
+      column_name: gmv
+    expressionType: SIMPLE
+    label: GMV
+    optionName: metric_gmv_sum
+  groupby: []
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  order_desc: true
+  row_limit: 15
+  truncate_metric: true
+  show_empty_columns: true
+  comparison_type: values
+  annotation_layers: []
+  forecastPeriods: 10
+  forecastInterval: 0.8
+  orientation: horizontal
+  x_axis_title_margin: 15
+  y_axis_title_margin: 15
+  y_axis_title_position: Left
+  sort_series_type: sum
+  color_scheme: supersetColors
+  only_total: true
+  show_legend: true
+  legendType: scroll
+  legendOrientation: top
+  x_axis_time_format: smart_date
+  y_axis_format: ',d'
+  truncateXAxis: true
+  y_axis_bounds:
+  - null
+  - null
+  rich_tooltip: true
+  showTooltipTotal: true
+  showTooltipPercentage: true
+  tooltipTimeFormat: smart_date
+  extra_form_data: {}
+  dashboards:
+  - 1
+query_context: '{"datasource":{"id":3,"type":"table"},"force":false,"queries":[{"filters":[{"col":"summary_date","op":"TEMPORAL_RANGE","val":"No
+  filter"}],"extras":{"having":"","where":""},"applied_time_extras":{},"columns":[{"columnType":"BASE_AXIS","sqlExpression":"dim_value","label":"dim_value","expressionType":"SQL"}],"metrics":[{"aggregate":"SUM","column":{"column_name":"gmv"},"expressionType":"SIMPLE","label":"GMV","optionName":"metric_gmv_sum"}],"orderby":[[{"aggregate":"SUM","column":{"column_name":"gmv"},"expressionType":"SIMPLE","label":"GMV","optionName":"metric_gmv_sum"},false]],"annotation_layers":[],"row_limit":15,"series_columns":[],"series_limit":0,"order_desc":true,"url_params":{},"custom_params":{},"custom_form_data":{},"time_offsets":[],"post_processing":[{"operation":"pivot","options":{"index":["dim_value"],"columns":[],"aggregates":{"GMV":{"operator":"mean"}},"drop_missing_columns":false}},{"operation":"sort","options":{"by":"GMV","ascending":false}},{"operation":"flatten"}]}],"form_data":{"datasource":"3__table","viz_type":"echarts_timeseries_bar","slice_id":6,"x_axis":"dim_value","xAxisForceCategorical":true,"x_axis_sort":"GMV","x_axis_sort_asc":false,"x_axis_sort_series":"name","x_axis_sort_series_ascending":true,"metrics":[{"aggregate":"SUM","column":{"column_name":"gmv"},"expressionType":"SIMPLE","label":"GMV","optionName":"metric_gmv_sum"}],"groupby":[],"adhoc_filters":[{"clause":"WHERE","subject":"summary_date","operator":"TEMPORAL_RANGE","comparator":"No
+  filter","expressionType":"SIMPLE"}],"order_desc":true,"row_limit":15,"truncate_metric":true,"show_empty_columns":true,"comparison_type":"values","annotation_layers":[],"forecastPeriods":10,"forecastInterval":0.8,"orientation":"horizontal","x_axis_title_margin":15,"y_axis_title_margin":15,"y_axis_title_position":"Left","sort_series_type":"sum","color_scheme":"supersetColors","only_total":true,"show_legend":true,"legendType":"scroll","legendOrientation":"top","x_axis_time_format":"smart_date","y_axis_format":",d","truncateXAxis":true,"y_axis_bounds":[null,null],"rich_tooltip":true,"showTooltipTotal":true,"showTooltipPercentage":true,"tooltipTimeFormat":"smart_date","extra_form_data":{},"dashboards":[1],"force":false,"result_format":"json","result_type":"full"},"result_format":"json","result_type":"full"}'
+cache_timeout: null
+uuid: 4476878c-6541-47f7-bf36-20955f2fc678
+version: 1.0.0
+dataset_uuid: 09e3acd2-49b0-4d8f-b90f-db2035a0bd45

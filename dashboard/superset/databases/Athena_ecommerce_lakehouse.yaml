@@ -1,0 +1,16 @@
+database_name: Athena (ecommerce_lakehouse)
+sqlalchemy_uri: awsathena+rest://@athena.ap-northeast-2.amazonaws.com:443/ecommerce_lakehouse?s3_staging_dir=s3://ecommerce-iceberg-pipeline-bronze/athena-results/&work_group=ecommerce-lakehouse
+cache_timeout: 86400
+expose_in_sqllab: true
+allow_run_async: false
+allow_ctas: false
+allow_cvas: false
+allow_dml: false
+allow_file_upload: false
+extra:
+  metadata_params: {}
+  engine_params: {}
+  metadata_cache_timeout: {}
+  schemas_allowed_for_file_upload: []
+uuid: 853541a1-e750-4519-8cd7-d786fb8d636e
+version: 1.0.0

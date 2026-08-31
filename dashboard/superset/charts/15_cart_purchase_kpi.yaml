@@ -1,0 +1,40 @@
+slice_name: "Cart\u2192Purchase \uC804\uD658\uC728"
+description: "\uC120\uD0DD \uAE30\uAC04\uC758 Cart\u2192Purchase \uC804\uD658\uC728\
+  . \uC77C\uBCC4 \uBE44\uC728\uC758 \uD3C9\uADE0\uC774 \uC544\uB2C8\uB77C SUM(\uBD84\
+  \uC790)/SUM(\uBD84\uBAA8)\uB85C \uACC4\uC0B0\uD55C\uB2E4."
+certified_by: null
+certification_details: null
+viz_type: big_number_total
+params:
+  datasource: 5__table
+  viz_type: big_number_total
+  slice_id: 3
+  metric: cart_to_purchase
+  adhoc_filters:
+  - clause: WHERE
+    subject: summary_date
+    operator: TEMPORAL_RANGE
+    comparator: No filter
+    expressionType: SIMPLE
+  header_font_size: 0.4
+  subheader_font_size: 0.15
+  y_axis_format: .2%
+  time_format: smart_date
+  extra_form_data: {}
+  dashboards: []
+  annotation_layers: []
+query_context: '{"datasource": {"id": 5, "type": "table"}, "force": false, "queries":
+  [{"filters": [{"col": "summary_date", "op": "TEMPORAL_RANGE", "val": "No filter"}],
+  "extras": {"having": "", "where": ""}, "applied_time_extras": {}, "columns": [],
+  "metrics": ["cart_to_purchase"], "annotation_layers": [], "series_limit": 0, "order_desc":
+  true, "url_params": {}, "custom_params": {}, "custom_form_data": {}}], "form_data":
+  {"datasource": "5__table", "viz_type": "big_number_total", "slice_id": 3, "metric":
+  "cart_to_purchase", "adhoc_filters": [{"clause": "WHERE", "subject": "summary_date",
+  "operator": "TEMPORAL_RANGE", "comparator": "No filter", "expressionType": "SIMPLE"}],
+  "header_font_size": 0.4, "subheader_font_size": 0.15, "y_axis_format": ".2%", "time_format":
+  "smart_date", "extra_form_data": {}, "dashboards": [], "force": false, "result_format":
+  "json", "result_type": "full"}, "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: b8ad9d34-3ac1-43b9-9aec-dc1ab162f08b
+version: 1.0.0
+dataset_uuid: 253bb911-82d4-47e5-abfa-55ef7fa5b016
