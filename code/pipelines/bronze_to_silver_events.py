@@ -47,9 +47,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--s3-bucket", default=os.environ.get("S3_BUCKET"))
     parser.add_argument("--aws-region", default=os.environ.get("AWS_REGION", "ap-northeast-2"))
     parser.add_argument("--zones", default=",".join(ZONES))
-    parser.add_argument("--from-datetime", help="raw_datetime 하한(포함). 생략 시 타깃 테이블에서 자동 계산")
-    parser.add_argument("--to-datetime", help="raw_datetime 상한(포함). 생략 시 제한 없음")
-    return parser.parse_args()
+    parser.add_argument("--from-datetime", help="raw_datetime 하한(포함). to와 함께 생략 시 전체")
+    parser.add_argument("--to-datetime", help="raw_datetime 상한(미포함). from과 함께 생략 시 전체")
+    args = parser.parse_args()
+
+    if bool(args.from_datetime) != bool(args.to_datetime):
+        parser.error("--from-datetime과 --to-datetime은 함께 지정해야 합니다")
+    if args.from_datetime and args.from_datetime >= args.to_datetime:
+        parser.error("--from-datetime은 --to-datetime보다 이전이어야 합니다")
+    return args
 
 
 def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
@@ -71,17 +77,6 @@ def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
     return spark
 
 
-def resolve_watermark(spark: SparkSession, zones: list[str], override: str | None) -> dict[str, str]:
-    if override:
-        return {z: override for z in zones}
-    rows = spark.sql(f"""
-        SELECT event_type, date_format(max(ingest_ts), 'yyyy-MM-dd-HH') AS watermark
-        FROM {TARGET_TABLE}
-        GROUP BY event_type
-    """).collect()
-    return {r["event_type"]: r["watermark"] for r in rows if r["watermark"]}
-
-
 def read_zone(
     spark: SparkSession,
     s3_bucket: str,
@@ -90,11 +85,11 @@ def read_zone(
     to_datetime: str | None,
 ) -> DataFrame:
     df = spark.read.parquet(f"s3a://{s3_bucket}/raw/{zone}/")
-    # 경계 시간대를 Flink가 아직 쓰는 중일 수 있어 > 가 아니라 >= 다
+    # Airflow data interval과 같은 반개방 구간 [from, to)로 읽는다.
     if from_datetime:
         df = df.filter(F.col("raw_datetime") >= from_datetime)
     if to_datetime:
-        df = df.filter(F.col("raw_datetime") <= to_datetime)
+        df = df.filter(F.col("raw_datetime") < to_datetime)
     return df
 
 
@@ -102,10 +97,10 @@ def read_bronze(
     spark: SparkSession,
     s3_bucket: str,
     zones: list[str],
-    watermarks: dict[str, str],
+    from_datetime: str | None,
     to_datetime: str | None,
 ) -> DataFrame:
-    frames = [read_zone(spark, s3_bucket, z, watermarks.get(z), to_datetime) for z in zones]
+    frames = [read_zone(spark, s3_bucket, z, from_datetime, to_datetime) for z in zones]
     return reduce(DataFrame.unionByName, frames)
 
 
@@ -160,10 +155,10 @@ def main() -> None:
     spark = build_spark(args.s3_bucket, args.aws_region)
 
     zones = args.zones.split(",")
-    watermarks = resolve_watermark(spark, zones, args.from_datetime)
-    print(f"zone별 하한: {watermarks or '(전체)'} / 상한: {args.to_datetime or '(제한 없음)'}")
+    interval = f"[{args.from_datetime}, {args.to_datetime})" if args.from_datetime else "(전체)"
+    print(f"raw_datetime 구간: {interval}")
 
-    raw = read_bronze(spark, args.s3_bucket, zones, watermarks, args.to_datetime)
+    raw = read_bronze(spark, args.s3_bucket, zones, args.from_datetime, args.to_datetime)
     transformed = transform(raw)
     deduped = dedup(transformed)
 
