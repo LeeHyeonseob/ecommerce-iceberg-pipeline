@@ -12,36 +12,48 @@ PACKAGES = ",".join([
     "org.apache.iceberg:iceberg-aws-bundle:1.9.2",
 ])
 
-EVENTS_TABLE = "glue.ecommerce_lakehouse.silver_events"
-FUNNEL_TABLE = "glue.ecommerce_lakehouse.silver_funnel"
-
-GOLD_DAILY_GMV    = "glue.ecommerce_lakehouse.gold_daily_gmv"
-GOLD_FUNNEL_DAILY = "glue.ecommerce_lakehouse.gold_funnel_daily"
-GOLD_CATEGORY_GMV = "glue.ecommerce_lakehouse.gold_category_gmv"
-GOLD_PIPELINE_SLA = "glue.ecommerce_lakehouse.gold_pipeline_sla"
-GOLD_DATA_QUALITY = "glue.ecommerce_lakehouse.gold_data_quality"
+# 검증용 환경(test-full 등)을 추가하려면 여기 세 딕셔너리에 항목을 더하고
+# 해당 테이블을 만드는 DDL을 같이 준비하면 된다.
+EVENTS_TABLES = {
+    "prod": "glue.ecommerce_lakehouse.silver_events",
+}
+FUNNEL_TABLES = {
+    "prod": "glue.ecommerce_lakehouse.silver_funnel",
+}
+GOLD_TABLES = {
+    "prod": {
+        name: f"glue.ecommerce_lakehouse.{name}"
+        for name in (
+            "gold_daily_gmv",
+            "gold_funnel_daily",
+            "gold_category_gmv",
+            "gold_pipeline_sla",
+            "gold_data_quality",
+        )
+    },
+}
 
 # updated_at을 뺀 DDL 컬럼 순서. 쓰기가 순서를 따지므로 한곳에서 관리한다
 GOLD_COLUMNS = {
-    GOLD_DAILY_GMV: [
+    "gold_daily_gmv": [
         "summary_date", "gmv", "purchase_cnt", "unique_buyers", "avg_price",
     ],
-    GOLD_FUNNEL_DAILY: [
+    "gold_funnel_daily": [
         "summary_date", "category_l1", "funnels", "views", "carts", "purchases",
         "purchases_later", "views_carted", "views_purchased", "carts_purchased",
         "carts_converted_later",
         "view_to_cart", "cart_to_purchase", "view_to_purchase",
         "abandon_rate", "abandon_rate_final", "cart_value", "lost_revenue",
     ],
-    GOLD_CATEGORY_GMV: [
+    "gold_category_gmv": [
         "summary_date", "dim_type", "dim_value", "gmv", "gmv_share",
         "purchase_cnt", "rank_in_day", "cum_gmv_share",
     ],
-    GOLD_PIPELINE_SLA: [
+    "gold_pipeline_sla": [
         "summary_date", "event_hour", "event_type", "events",
         "lag_p50", "lag_p95", "lag_p99", "lag_max",
     ],
-    GOLD_DATA_QUALITY: [
+    "gold_data_quality": [
         "summary_date", "total_events", "view_cnt", "cart_cnt", "purchase_cnt",
         "cart_view_ratio", "purchase_view_ratio", "null_category_rate", "null_brand_rate",
         "price_null_cnt", "price_nonpositive_cnt", "purchase_without_view_cnt",
@@ -53,10 +65,32 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--s3-bucket", default=os.environ.get("S3_BUCKET"))
     parser.add_argument("--aws-region", default=os.environ.get("AWS_REGION", "ap-northeast-2"))
+    parser.add_argument("--env", choices=list(GOLD_TABLES), default="prod")
     parser.add_argument("--from-date", help="summary_date 하한(포함). 생략 시 전체")
     parser.add_argument("--to-date", help="summary_date 상한(포함). 생략 시 전체")
+    parser.add_argument(
+        "--event-dates",
+        help="증분 전용. 콤마 구분 event_date 목록(연속 아니어도 됨). "
+        "--from-date/--to-date와 함께 쓸 수 없음",
+    )
+    parser.add_argument(
+        "--funnel-dates",
+        help="증분 전용. 콤마 구분 funnel_date 목록. --from-date/--to-date와 함께 쓸 수 없음",
+    )
     parser.add_argument("--tables", default="all", help="쉼표 구분. 생략 시 5개 전부")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    uses_range = bool(args.from_date or args.to_date)
+    uses_dates = bool(args.event_dates or args.funnel_dates)
+    if uses_range and uses_dates:
+        parser.error("--from-date/--to-date와 --event-dates/--funnel-dates는 함께 쓸 수 없습니다")
+
+    args.event_dates = args.event_dates.split(",") if args.event_dates else None
+    args.funnel_dates = args.funnel_dates.split(",") if args.funnel_dates else None
+    args.events_table = EVENTS_TABLES[args.env]
+    args.funnel_table = FUNNEL_TABLES[args.env]
+    args.gold_tables = GOLD_TABLES[args.env]
+    return args
 
 
 def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
@@ -77,7 +111,10 @@ def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
     return spark
 
 
-def _date_filter(df: DataFrame, column: str, from_date, to_date) -> DataFrame:
+def _date_filter(df: DataFrame, column: str, from_date, to_date, dates=None) -> DataFrame:
+    # 날짜 목록은 비연속일 수 있으므로 IN으로 필터링한다.
+    if dates:
+        return df.filter(F.col(column).isin(dates))
     if from_date:
         df = df.filter(F.col(column) >= F.lit(from_date).cast("date"))
     if to_date:
@@ -85,17 +122,17 @@ def _date_filter(df: DataFrame, column: str, from_date, to_date) -> DataFrame:
     return df
 
 
-def read_events(spark: SparkSession, from_date, to_date) -> DataFrame:
-    return _date_filter(spark.table(EVENTS_TABLE), "event_date", from_date, to_date)
+def read_events(spark: SparkSession, table: str, from_date, to_date, dates=None) -> DataFrame:
+    return _date_filter(spark.table(table), "event_date", from_date, to_date, dates)
 
 
-def read_funnels(spark: SparkSession, from_date, to_date) -> DataFrame:
-    return _date_filter(spark.table(FUNNEL_TABLE), "funnel_date", from_date, to_date)
+def read_funnels(spark: SparkSession, table: str, from_date, to_date, dates=None) -> DataFrame:
+    return _date_filter(spark.table(table), "funnel_date", from_date, to_date, dates)
 
 
-def finalize(df: DataFrame, table: str) -> DataFrame:
+def finalize(df: DataFrame, table_name: str) -> DataFrame:
     return df.withColumn("updated_at", F.current_timestamp()).select(
-        *GOLD_COLUMNS[table], "updated_at"
+        *GOLD_COLUMNS[table_name], "updated_at"
     )
 
 
@@ -113,7 +150,7 @@ def build_daily_gmv(events: DataFrame) -> DataFrame:
         WHERE event_type = 'purchase'
         GROUP BY event_date
     """)
-    return finalize(df, GOLD_DAILY_GMV)
+    return finalize(df, "gold_daily_gmv")
 
 
 def build_category_gmv(events: DataFrame) -> DataFrame:
@@ -164,7 +201,7 @@ def build_category_gmv(events: DataFrame) -> DataFrame:
             ) / sum(gmv) OVER (PARTITION BY summary_date, dim_type) AS cum_gmv_share
         FROM agg
     """)
-    return finalize(df, GOLD_CATEGORY_GMV)
+    return finalize(df, "gold_category_gmv")
 
 
 def build_pipeline_sla(events: DataFrame) -> DataFrame:
@@ -183,7 +220,7 @@ def build_pipeline_sla(events: DataFrame) -> DataFrame:
         FROM sla_source_events
         GROUP BY event_date, hour(event_time), event_type
     """)
-    return finalize(df, GOLD_PIPELINE_SLA)
+    return finalize(df, "gold_pipeline_sla")
 
 
 def build_data_quality(events: DataFrame, funnels: DataFrame) -> DataFrame:
@@ -229,7 +266,7 @@ def build_data_quality(events: DataFrame, funnels: DataFrame) -> DataFrame:
         FROM e
         LEFT JOIN f ON e.summary_date = f.summary_date
     """)
-    return finalize(df, GOLD_DATA_QUALITY)
+    return finalize(df, "gold_data_quality")
 
 
 def build_funnel_daily(funnels: DataFrame) -> DataFrame:
@@ -279,21 +316,41 @@ def build_funnel_daily(funnels: DataFrame) -> DataFrame:
         FROM f
         GROUP BY GROUPING SETS ((funnel_date, category_l1), (funnel_date))
     """)
-    return finalize(df, GOLD_FUNNEL_DAILY)
+    return finalize(df, "gold_funnel_daily")
 
 
-def overwrite_partitions(df: DataFrame, table: str) -> None:
-    # 배치에 들어있는 파티션만 교체. append면 같은 날짜 재실행 시 행이 두 배가 된다
-    df.writeTo(table).overwritePartitions()
+def overwrite_partitions(
+    df: DataFrame,
+    table: str,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    dates: list[str] | None = None,
+) -> None:
+    # 선택한 날짜만 원자적으로 교체한다. df에 없는 날짜도 조건에 포함하면 해당
+    # 파티션은 삭제되므로, 재계산 결과가 0행인 날짜에 오래된 값이 남지 않는다.
+    if dates:
+        literals = ", ".join(f"DATE '{value}'" for value in dates)
+        predicate = f"summary_date IN ({literals})"
+    elif from_date or to_date:
+        predicates = []
+        if from_date:
+            predicates.append(f"summary_date >= DATE '{from_date}'")
+        if to_date:
+            predicates.append(f"summary_date <= DATE '{to_date}'")
+        predicate = " AND ".join(predicates)
+    else:
+        df.writeTo(table).overwritePartitions()
+        return
+    df.writeTo(table).overwrite(F.expr(predicate))
 
 
 # (조립 함수, 필요한 소스, 대상 테이블). 소스는 선언 순서대로 인자로 넘어간다
 BUILDERS = {
-    "gold_daily_gmv":    (build_daily_gmv,    ("events",),           GOLD_DAILY_GMV),
-    "gold_category_gmv": (build_category_gmv, ("events",),           GOLD_CATEGORY_GMV),
-    "gold_pipeline_sla": (build_pipeline_sla, ("events",),           GOLD_PIPELINE_SLA),
-    "gold_data_quality": (build_data_quality, ("events", "funnels"), GOLD_DATA_QUALITY),
-    "gold_funnel_daily": (build_funnel_daily, ("funnels",),          GOLD_FUNNEL_DAILY),
+    "gold_daily_gmv":    (build_daily_gmv,    ("events",)),
+    "gold_category_gmv": (build_category_gmv, ("events",)),
+    "gold_pipeline_sla": (build_pipeline_sla, ("events",)),
+    "gold_data_quality": (build_data_quality, ("events", "funnels")),
+    "gold_funnel_daily": (build_funnel_daily, ("funnels",)),
 }
 
 
@@ -302,20 +359,60 @@ def main() -> None:
     spark = build_spark(args.s3_bucket, args.aws_region)
 
     targets = list(BUILDERS) if args.tables == "all" else args.tables.split(",")
+    unknown = sorted(set(targets) - set(BUILDERS))
+    if unknown:
+        raise ValueError(f"알 수 없는 Gold 테이블: {unknown}")
     print(f"대상: {targets}")
-    print(f"날짜 범위: {args.from_date or '(전체)'} ~ {args.to_date or '(전체)'}")
+    print(f"환경: {args.env} events={args.events_table} funnels={args.funnel_table}")
+    if args.event_dates or args.funnel_dates:
+        print(f"event_dates={args.event_dates} funnel_dates={args.funnel_dates}")
+    else:
+        print(f"날짜 범위: {args.from_date or '(전체)'} ~ {args.to_date or '(전체)'}")
 
-    readers = {"events": read_events, "funnels": read_funnels}
+    readers = {
+        "events": lambda from_date, to_date, dates: read_events(
+            spark, args.events_table, from_date, to_date, dates
+        ),
+        "funnels": lambda from_date, to_date, dates: read_funnels(
+            spark, args.funnel_table, from_date, to_date, dates
+        ),
+    }
+    dates_by_source = {"events": args.event_dates, "funnels": args.funnel_dates}
     sources: dict[str, DataFrame] = {}
 
     for name in targets:
-        builder, needs, table = BUILDERS[name]
-        for s in needs:
-            if s not in sources:
-                sources[s] = readers[s](spark, args.from_date, args.to_date)
+        builder, needs = BUILDERS[name]
+        table = args.gold_tables[name]
 
-        overwrite_partitions(builder(*(sources[s] for s in needs)), table)
-        print(f"{name}: {spark.table(table).count()}행")
+        if name == "gold_data_quality" and (args.event_dates or args.funnel_dates):
+            # 두 날짜 축의 합집합을 사용한다.
+            dq_dates = sorted(set(args.event_dates or []) | set(args.funnel_dates or []))
+            if not dq_dates:
+                print(f"{name}: 영향 날짜가 없어 건너뜀")
+                continue
+            dq_events = read_events(spark, args.events_table, None, None, dq_dates)
+            dq_funnels = read_funnels(spark, args.funnel_table, None, None, dq_dates)
+            overwrite_partitions(builder(dq_events, dq_funnels), table, dates=dq_dates)
+            print(f"{name}: {len(dq_dates)}개 날짜 갱신")
+            continue
+
+        for s in needs:
+            if (args.event_dates or args.funnel_dates) and not dates_by_source[s]:
+                print(f"{name}: {s} 영향 날짜가 없어 건너뜀")
+                break
+            if s not in sources:
+                sources[s] = readers[s](args.from_date, args.to_date, dates_by_source[s])
+        else:
+            output_dates = dates_by_source[needs[0]] if (args.event_dates or args.funnel_dates) else None
+            overwrite_partitions(
+                builder(*(sources[s] for s in needs)),
+                table,
+                args.from_date,
+                args.to_date,
+                output_dates,
+            )
+            scope = output_dates if output_dates is not None else "전체"
+            print(f"{name}: 대상 날짜={scope}")
 
     spark.stop()
 
