@@ -393,7 +393,8 @@ def main() -> None:
             dq_events = read_events(spark, args.events_table, None, None, dq_dates)
             dq_funnels = read_funnels(spark, args.funnel_table, None, None, dq_dates)
             overwrite_partitions(builder(dq_events, dq_funnels), table, dates=dq_dates)
-            print(f"{name}: {len(dq_dates)}개 날짜 갱신")
+            total = spark.table(table).count()
+            print(f"{name}: {len(dq_dates)}개 날짜 갱신, Gold 대상 테이블 전체 행 수={total}")
             continue
 
         for s in needs:
@@ -412,7 +413,8 @@ def main() -> None:
                 output_dates,
             )
             scope = output_dates if output_dates is not None else "전체"
-            print(f"{name}: 대상 날짜={scope}")
+            total = spark.table(table).count()
+            print(f"{name}: 대상 날짜={scope}, Gold 대상 테이블 전체 행 수={total}")
 
     spark.stop()
 

@@ -16,7 +16,7 @@ PACKAGES = ",".join([
     "org.apache.hadoop:hadoop-aws:3.3.4",
 ])
 
-    # 환경별 테이블을 고정 매핑해 오기입을 막는다.
+# 환경별 테이블을 고정 매핑해 오기입을 막는다.
 SOURCE_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_events",
 }
@@ -252,6 +252,9 @@ def run_full(spark: SparkSession, args: argparse.Namespace) -> None:
     print(f"퍼널={stats['funnels']} viewed={stats['viewed']} carted={stats['carted']}")
     print(f"세션 내 전환={stats['purchased']} 지연 전환={stats['converted_later']}")
 
+    total = spark.table(args.target_table).count()
+    print(f"{args.target_table} 전체 행 수={total}")
+
 
 def read_batch_events(spark: SparkSession, path: str) -> DataFrame:
     # bronze_to_silver_events가 이번 실행에서 처리한 이벤트를 낸 산출물.
@@ -422,6 +425,9 @@ def run_incremental(spark: SparkSession, args: argparse.Namespace) -> dict:
     affected_key_count = affected_keys.count()
     print(f"영향받은 키={affected_key_count} 재계산된 funnel={stats['funnels']} 지연 전환={stats['converted_later']}")
     print(f"영향받은 funnel_date={[str(d) for d in affected_funnel_dates]}")
+
+    total = spark.table(args.target_table).count()
+    print(f"{args.target_table} 전체 행 수={total}")
 
     rebuilt_funnels.unpersist()
     affected_keys.unpersist()

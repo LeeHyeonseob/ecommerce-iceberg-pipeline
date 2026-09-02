@@ -215,6 +215,9 @@ def main() -> None:
     print(f"읽은 행={read_count} dedup 후={stats['n']} (접힌 행={read_count - stats['n']})")
     print(f"price NULL={stats['null_price']}")
 
+    total = spark.table(args.target_table).count()
+    print(f"{args.target_table} 전체 행 수={total}")
+
     deduped.unpersist()
     spark.stop()
     print(json.dumps({
