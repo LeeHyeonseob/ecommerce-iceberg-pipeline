@@ -19,6 +19,8 @@ PACKAGES = ",".join([
 
 TARGET_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_events",
+    "test-full": "glue.ecommerce_lakehouse.silver_events_test",
+    "test-incremental": "glue.ecommerce_lakehouse.silver_events_test",
 }
 ZONES = ["view", "cart", "purchase"]
 
@@ -165,12 +167,18 @@ def dedup(df: DataFrame) -> DataFrame:
     return df.withColumn("rn", F.row_number().over(w)).filter("rn = 1").drop("rn")
 
 
-def merge_into_silver(spark: SparkSession, df: DataFrame, target_table: str) -> None:
+def merge_into_silver(
+    spark: SparkSession, df: DataFrame, target_table: str, event_dates: list
+) -> None:
+    if not event_dates:
+        return
     df.createOrReplaceTempView("batch")
+    date_values = ", ".join(f"DATE '{value}'" for value in event_dates)
     spark.sql(
         f"""
         MERGE INTO {target_table} t
         USING batch s ON t.event_id = s.event_id
+          AND t.event_date IN ({date_values})
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
         """
@@ -202,7 +210,7 @@ def main() -> None:
         F.sort_array(F.collect_set("event_date")).alias("event_dates"),
     ).collect()[0]
 
-    merge_into_silver(spark, deduped, args.target_table)
+    merge_into_silver(spark, deduped, args.target_table, stats["event_dates"])
 
     if args.batch_output_path:
         if stats["n"] > 0:

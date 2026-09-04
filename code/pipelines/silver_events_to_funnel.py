@@ -19,9 +19,13 @@ PACKAGES = ",".join([
 # 환경별 테이블을 고정 매핑해 오기입을 막는다.
 SOURCE_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_events",
+    "test-full": "glue.ecommerce_lakehouse.silver_events_test",
+    "test-incremental": "glue.ecommerce_lakehouse.silver_events_test",
 }
 TARGET_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_funnel",
+    "test-full": "glue.ecommerce_lakehouse.silver_funnel_test_full",
+    "test-incremental": "glue.ecommerce_lakehouse.silver_funnel_test_incremental",
 }
 
 CROSS_SESSION_WINDOW_DAYS = 30
@@ -219,12 +223,18 @@ def attach_cross_session(funnels: DataFrame, purchase_evidence: DataFrame) -> Da
     """).select(*FUNNEL_COLUMNS)
 
 
-def merge_into_funnel(spark: SparkSession, df: DataFrame, target_table: str) -> None:
+def merge_into_funnel(
+    spark: SparkSession, df: DataFrame, target_table: str, funnel_dates: set | None = None
+) -> None:
     df.createOrReplaceTempView("silver_funnel_batch")
+    date_condition = ""
+    if funnel_dates:
+        date_values = ", ".join(f"DATE '{value}'" for value in sorted(funnel_dates))
+        date_condition = f" AND t.funnel_date IN ({date_values})"
     spark.sql(f"""
         MERGE INTO {target_table} t
         USING silver_funnel_batch s
-          ON t.user_session = s.user_session AND t.product_id = s.product_id
+          ON t.user_session = s.user_session AND t.product_id = s.product_id{date_condition}
         WHEN MATCHED THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
@@ -419,9 +429,8 @@ def run_incremental(spark: SparkSession, args: argparse.Namespace) -> dict:
         row["funnel_date"] for row in rebuilt_funnels.select("funnel_date").distinct().collect()
     }
 
-    merge_into_funnel(spark, rebuilt_funnels, args.target_table)
-
     affected_funnel_dates = sorted(old_dates | new_dates)
+    merge_into_funnel(spark, rebuilt_funnels, args.target_table, set(affected_funnel_dates))
     affected_key_count = affected_keys.count()
     print(f"영향받은 키={affected_key_count} 재계산된 funnel={stats['funnels']} 지연 전환={stats['converted_later']}")
     print(f"영향받은 funnel_date={[str(d) for d in affected_funnel_dates]}")
