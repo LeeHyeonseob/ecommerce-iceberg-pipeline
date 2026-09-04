@@ -9,7 +9,7 @@ Silver/Gold를 구성한 뒤 Athena와 Superset으로 조회하는 데이터 플
 | Silver·Gold | 전체 적재 완료·증분 보완 예정 | Iceberg 테이블 7개, 일 단위 Gold 5개 |
 | 조회·대시보드 | 완료 | Superset 데이터셋 7개·지표 22개·차트 15개, PostgreSQL 메타DB·Redis 캐시 |
 | Iceberg 관리 | 실험 완료 | 컴팩션·스냅샷 만료·고아 파일 정리 검증 |
-| 운영 설계 | 진행 예정 | 헬스 쿼리 5~10개, Iceberg 관리 자동화, 100x 확장, 장애 시나리오, 증분 처리 보완 |
+| 운영 설계 | 헬스 쿼리·Iceberg 관리 자동화 완료 | 100x 확장, 장애 시나리오, 증분 처리 보완 진행 예정 |
 
 ## 1. 도메인과 핵심 KPI
 
@@ -84,9 +84,49 @@ Gold는 KPI별 SQL과 테이블로 분리하며 모두 `overwritePartitions()`�
 
 ## 5. 운영 헬스 체크 쿼리
 
-`rewrite_data_files`, `rewrite_position_delete_files`, `rewrite_manifests`의 전후 상태를 비교하는
-컴팩션 데모를 구현했다. Superset 운영 탭에서는 일별 행 수·지연·NULL·가격 이상치와 Iceberg 파일
-상태를 확인한다. 메타테이블 기반 일상 점검 쿼리 5~10개와 Iceberg 관리 자동화는 아직 미구현이다.
+`code/health-queries/`에 Iceberg 메타 테이블(`snapshots`/`files`/`history`/`manifests`) 기반 헬스
+쿼리 7개가 있다.
+
+- `iceberg/01_snapshot_health.sql` — 테이블별 최신 스냅샷 시각·누적 개수
+- `iceberg/02_manifest_health.sql` — 테이블별 매니페스트 수
+- `iceberg/03_history_health.sql` — HEAD 전환 시각과 현재 계보에 속하지 않는 스냅샷 수(롤백 신호)
+- `gold/01_freshness.sql`, `silver/01_freshness.sql` — 레이어별 최신 파티션 날짜
+- `gold/02_file_health.sql`, `silver/02_file_health.sql` — 레이어별 파일 수·크기·small file 개수
+
+`code/pipelines/health_check.py`가 이 쿼리들을 재귀적으로 찾아 실행하고, Airflow
+`ecommerce_incremental` DAG의 마지막 태스크(`gold_task >> health`)로 걸려 있어 파이프라인이 돌
+때마다 자동으로 실행된다. Superset `TAB-OPERATIONS`에서는 Iceberg 파일 상태, 일별 행 수, NULL
+비율, 가격 이상치를 확인한다.
+
+`health_check.py`는 쿼리 실행과 로그 기록까지만 담당하고, **값을 정상/비정상으로 판정하는 건
+운영자 몫**이다. 쿼리 자체가 실패하면(테이블 소실, 스키마 깨짐 등) Airflow 태스크가 실패로
+뜨지만, 지표 값이 특정 임계치를 넘었는지는 판단하지 않는다. 의도적으로 안 넣은 이유는 다음과
+같다.
+
+- **pass/fail 임계값**: 아직 판정 기준선이 없다. 지금은 벌크 적재라 `pipeline_lag_sec`가 전부
+  ms 단위라 SLA 임계값이 무의미하고, `small_file_count`는 컴팩션 주기에 따라 0이 아닌 게
+  정상이라 몇 개부터 이상인지 아직 모른다.
+- **알림(Slack 등)**: DAG가 `schedule=None`(수동 트리거)이라 무인 실행이 없어 알림을 받을
+  소비자가 없다. 운영 cron으로 전환할 때 Airflow 실패 콜백에 연결하면 된다.
+- **이력·추세 추적**: 이미 하고 있다. `gold_data_quality`/`gold_pipeline_sla`가 매 실행마다
+  `summary_date`별로 쌓이는 Iceberg 테이블이라 품질 지표 시계열 역할을 하고, Iceberg
+  `snapshots`/`history` 메타테이블도 `SNAPSHOT_RETENTION_DAYS`(30일) 동안 커밋 이력을 보관한다.
+  `health_check.py`는 이 위에 별도 저장소를 만들지 않고 현재 상태 스냅샷 조회만 담당한다.
+
+dbt test·Great Expectations·Soda 같은 데이터 옵저버빌리티 도구 대비 부족한 축은 판정·알림·테스트
+정의의 선언적 관리 세 가지이며, 지금 프로젝트 규모에서는 의도적으로 범위 밖에 뒀다.
+
+`code/pipelines/iceberg_maintenance.py`/`airflow/dags/iceberg_maintenance_dag.py`가
+`rewrite_data_files → rewrite_position_delete_files → rewrite_manifests → expire_snapshots →
+remove_orphan_files` 5단계를 정식 순서로 실행한다. 절차별 전후 상태 비교는
+`code/health-queries/compaction_demo.sql`(별도 MOR 데모 테이블)로 확인할 수 있다.
+
+**Bronze 파일 상태**: Bronze는 plain Parquet이라 Iceberg 메타테이블이 없어 위 헬스체크 대상에서
+제외했다. Flink sink가 1분마다 롤오버(`rollover-interval=1min`)해 이론상 small file 위험이
+있으나, 현재 `kafka_producer.py --speed` 배속 재생 테스트에서는 평균 17.8MB(260개/4.53GB)로
+문제가 나타나지 않았다 — 배속이 빠를수록 1분 윈도우당 이벤트가 더 몰려 파일이 커지기 때문이다.
+실시간·저트래픽 재생 시 재확인 후 필요하면 `rollover-interval` 조정 또는 시간별 컴팩션 잡을
+검토한다.
 
 ## 6. Superset 대시보드
 
