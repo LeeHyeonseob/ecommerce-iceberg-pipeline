@@ -6,6 +6,7 @@ from airflow.sdk import dag, task
 
 
 PIPELINE_DIR = "/opt/project/code/pipelines"
+HEALTH_SCRIPT = f"{PIPELINE_DIR}/health_check.py"
 def parse_last_json(output: str) -> dict:
     """명령 출력에서 마지막 JSON 결과만 XCom으로 반환한다."""
     import json
@@ -18,7 +19,7 @@ def parse_last_json(output: str) -> dict:
 
 @dag(
     dag_id="ecommerce_incremental",
-    # 통합 테스트가 끝나고 품질 검사까지 붙인 뒤 운영 cron을 활성화한다.
+    # health_check 태스크는 이미 붙어 있다. pass/fail 판정·알림까지 붙인 뒤 운영 cron을 활성화한다.
     schedule=None,
     start_date=pendulum.datetime(2026, 8, 24, tz="UTC"),
     catchup=False,
@@ -52,26 +53,40 @@ def ecommerce_incremental():
           --batch-output-path "$BATCH_PATH"
         """
 
-    @task.bash(pool="spark_pool", output_processor=parse_last_json)
+    @task.bash(
+        pool="spark_pool",
+        output_processor=parse_last_json,
+        env={
+            "EVENT_COUNT": "{{ ti.xcom_pull(task_ids='silver_events')['event_count'] }}",
+            "BATCH_PATH": "{{ ti.xcom_pull(task_ids='silver_events')['batch_output_path'] }}",
+        },
+        append_env=True,
+    )
     def silver_funnel() -> str:
         return f"""
         set -e
-        if [ {{{{ ti.xcom_pull(task_ids='silver_events')['event_count'] }}}} -eq 0 ]; then
+        if [ "$EVENT_COUNT" -eq 0 ]; then
           echo '{{"affected_key_count": 0, "funnel_dates": []}}'
         else
           python {PIPELINE_DIR}/silver_events_to_funnel.py \\
             --mode incremental \\
             --env '{{{{ params.pipeline_env }}}}' \\
-            --batch-input-path '{{{{ ti.xcom_pull(task_ids='silver_events')['batch_output_path'] }}}}'
+            --batch-input-path "$BATCH_PATH"
         fi
         """
 
-    @task.bash(pool="spark_pool", do_xcom_push=False)
+    @task.bash(
+        pool="spark_pool",
+        do_xcom_push=False,
+        env={
+            "EVENT_DATES": "{{ ti.xcom_pull(task_ids='silver_events')['event_dates'] | join(',') }}",
+            "FUNNEL_DATES": "{{ ti.xcom_pull(task_ids='silver_funnel')['funnel_dates'] | join(',') }}",
+        },
+        append_env=True,
+    )
     def gold() -> str:
         return f"""
         set -e
-        EVENT_DATES='{{{{ ti.xcom_pull(task_ids='silver_events')['event_dates'] | join(',') }}}}'
-        FUNNEL_DATES='{{{{ ti.xcom_pull(task_ids='silver_funnel')['funnel_dates'] | join(',') }}}}'
         if [ -z "$EVENT_DATES" ] && [ -z "$FUNNEL_DATES" ]; then
           echo '영향 날짜 없음 - Gold 건너뜀'
           exit 0
@@ -82,12 +97,23 @@ def ecommerce_incremental():
         python {PIPELINE_DIR}/silver_to_gold.py $ARGS
         """
 
+    @task.bash(pool="spark_pool", do_xcom_push=False)
+    def health_check() -> str:
+        return f"""
+        set -e
+        python {HEALTH_SCRIPT} \\
+          --s3-bucket "$S3_BUCKET" \\
+          --aws-region "${{AWS_REGION:-ap-northeast-2}}"
+        """
+
     events = silver_events()
     funnels = silver_funnel()
     events >> funnels
     gold_task = gold()
+    health = health_check()
     events >> gold_task
     funnels >> gold_task
+    gold_task >> health
 
 
 ecommerce_incremental()
