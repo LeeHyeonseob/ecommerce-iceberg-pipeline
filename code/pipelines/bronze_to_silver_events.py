@@ -199,6 +199,7 @@ def main() -> None:
     print(f"raw_datetime 구간: {interval}")
 
     raw = read_bronze(spark, args.s3_bucket, zones, args.from_datetime, args.to_datetime)
+    raw.persist()
     transformed = transform(raw)
     deduped = dedup(transformed)
     deduped.persist()
@@ -227,6 +228,7 @@ def main() -> None:
     print(f"{args.target_table} 전체 행 수={total}")
 
     deduped.unpersist()
+    raw.unpersist()
     spark.stop()
     print(json.dumps({
         "batch_output_path": args.batch_output_path if stats["n"] > 0 else None,
