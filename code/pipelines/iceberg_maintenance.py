@@ -71,6 +71,13 @@ def rewrite_data_files(spark: SparkSession, table: str) -> dict:
     return row.asDict()
 
 
+def rewrite_manifests(spark: SparkSession, table: str) -> dict:
+    row = spark.sql(
+        f"CALL glue.system.rewrite_manifests(table => '{procedure_table_name(table)}')"
+    ).collect()[0]
+    return row.asDict()
+
+
 def expire_snapshots(spark: SparkSession, table: str, older_than: str) -> dict:
     row = spark.sql(
         f"""
@@ -109,14 +116,19 @@ def main() -> None:
         for table in args.tables:
             print(f"=== {table} ===")
             compact = rewrite_data_files(spark, table)
+            manifests = rewrite_manifests(spark, table)
             expired = expire_snapshots(spark, table, older_than)
             orphan_count = remove_orphan_files(spark, table, older_than)
             results[table] = {
                 "rewrite_data_files": compact,
+                "rewrite_manifests": manifests,
                 "expire_snapshots": expired,
                 "orphan_count": orphan_count,
             }
-            print(f"  compaction={compact} expire={expired} orphan_삭제={orphan_count}건")
+            print(
+                f"  compaction={compact} manifests={manifests} "
+                f"expire={expired} orphan_삭제={orphan_count}건"
+            )
     finally:
         spark.stop()
 
