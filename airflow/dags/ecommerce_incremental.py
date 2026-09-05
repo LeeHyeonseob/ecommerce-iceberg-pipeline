@@ -19,8 +19,7 @@ def parse_last_json(output: str) -> dict:
 
 @dag(
     dag_id="ecommerce_incremental",
-    # health_check 태스크는 이미 붙어 있다. pass/fail 판정·알림까지 붙인 뒤 운영 cron을 활성화한다.
-    schedule=None,
+    schedule="@daily",
     start_date=pendulum.datetime(2026, 8, 24, tz="UTC"),
     catchup=False,
     max_active_runs=1,
@@ -35,15 +34,18 @@ def ecommerce_incremental():
         set -e
         FROM_DATETIME='{{{{ params.from_datetime }}}}'
         TO_DATETIME='{{{{ params.to_datetime }}}}'
-        if [ -n "$FROM_DATETIME" ] || [ -n "$TO_DATETIME" ]; then
+        {{% if params.from_datetime or params.to_datetime %}}
           if [ -z "$FROM_DATETIME" ] || [ -z "$TO_DATETIME" ]; then
             echo 'from_datetime과 to_datetime은 함께 지정해야 합니다' >&2
             exit 1
           fi
-        else
+        {{% elif data_interval_start is defined and data_interval_end is defined %}}
           FROM_DATETIME='{{{{ (data_interval_start - macros.timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S") }}}}'
           TO_DATETIME='{{{{ data_interval_end.strftime("%Y-%m-%d %H:%M:%S") }}}}'
-        fi
+        {{% else %}}
+          FROM_DATETIME='{{{{ (dag_run.run_after - macros.timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S") }}}}'
+          TO_DATETIME='{{{{ dag_run.run_after.strftime("%Y-%m-%d %H:%M:%S") }}}}'
+        {{% endif %}}
         RUN_TOKEN=$(printf '%s' '{{{{ run_id }}}}' | sha256sum | cut -c1-16)
         BATCH_PATH="s3a://$S3_BUCKET/control/funnel-batches/run_id=$RUN_TOKEN/attempt={{{{ ti.try_number }}}}/"
         docker exec spark-runner python {PIPELINE_DIR}/bronze_to_silver_events.py \\
