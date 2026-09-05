@@ -1,3 +1,5 @@
+name: ecommerce-streaming
+
 services:
   kafka:
     image: apache/kafka:latest

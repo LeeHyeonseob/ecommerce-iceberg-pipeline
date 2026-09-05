@@ -1,3 +1,5 @@
+name: ecommerce-bi
+
 # 수집(Kafka/Flink)과 생명주기가 달라서 분리
 services:
   postgres:
