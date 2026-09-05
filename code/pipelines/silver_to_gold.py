@@ -4,25 +4,26 @@ import os
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from spark_session import build_spark
 
 load_dotenv()
-
-PACKAGES = ",".join([
-    "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2",
-    "org.apache.iceberg:iceberg-aws-bundle:1.9.2",
-])
 
 # 검증용 환경(test-full 등)을 추가하려면 여기 세 딕셔너리에 항목을 더하고
 # 해당 테이블을 만드는 DDL을 같이 준비하면 된다.
 EVENTS_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_events",
+    "test-full": "glue.ecommerce_lakehouse.silver_events_test",
+    "test-incremental": "glue.ecommerce_lakehouse.silver_events_test",
 }
 FUNNEL_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_funnel",
+    "test-full": "glue.ecommerce_lakehouse.silver_funnel_test_full",
+    "test-incremental": "glue.ecommerce_lakehouse.silver_funnel_test_incremental",
 }
 GOLD_TABLES = {
-    "prod": {
+    env: {
         name: f"glue.ecommerce_lakehouse.{name}"
+        + suffix
         for name in (
             "gold_daily_gmv",
             "gold_funnel_daily",
@@ -30,7 +31,12 @@ GOLD_TABLES = {
             "gold_pipeline_sla",
             "gold_data_quality",
         )
-    },
+    }
+    for env, suffix in {
+        "prod": "",
+        "test-full": "_test_full",
+        "test-incremental": "_test_incremental",
+    }.items()
 }
 
 # updated_at을 뺀 DDL 컬럼 순서. 쓰기가 순서를 따지므로 한곳에서 관리한다
@@ -91,24 +97,6 @@ def parse_args() -> argparse.Namespace:
     args.funnel_table = FUNNEL_TABLES[args.env]
     args.gold_tables = GOLD_TABLES[args.env]
     return args
-
-
-def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
-    spark = (
-        SparkSession.builder.appName("silver_to_gold")
-        .config("spark.driver.memory", "8g")
-        .config("spark.jars.packages", PACKAGES)
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-        .config("spark.sql.catalog.glue", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.glue.type", "glue")
-        .config("spark.sql.catalog.glue.warehouse", f"s3://{s3_bucket}/warehouse")
-        .config("spark.sql.catalog.glue.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
-        .config("spark.sql.catalog.glue.client.region", aws_region)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
-    )
-    spark.sparkContext.setLogLevel("ERROR")
-    return spark
 
 
 def _date_filter(df: DataFrame, column: str, from_date, to_date, dates=None) -> DataFrame:
@@ -356,7 +344,7 @@ BUILDERS = {
 
 def main() -> None:
     args = parse_args()
-    spark = build_spark(args.s3_bucket, args.aws_region)
+    spark = build_spark("silver_to_gold", args.s3_bucket, args.aws_region)
 
     targets = list(BUILDERS) if args.tables == "all" else args.tables.split(",")
     unknown = sorted(set(targets) - set(BUILDERS))

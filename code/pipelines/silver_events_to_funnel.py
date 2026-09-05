@@ -6,15 +6,9 @@ from datetime import timedelta
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
+from spark_session import build_spark
 
 load_dotenv()
-
-PACKAGES = ",".join([
-    "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2",
-    "org.apache.iceberg:iceberg-aws-bundle:1.9.2",
-    # Incremental 배치 Parquet용 S3A 설정.
-    "org.apache.hadoop:hadoop-aws:3.3.4",
-])
 
 # 환경별 테이블을 고정 매핑해 오기입을 막는다.
 SOURCE_TABLES = {
@@ -99,24 +93,6 @@ def parse_args() -> argparse.Namespace:
             parser.error("--mode incremental에서는 --from-date/--to-date를 쓸 수 없습니다")
 
     return args
-
-
-def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
-    spark = (
-        SparkSession.builder.appName("silver_events_to_funnel")
-        .config("spark.driver.memory", "8g")
-        .config("spark.jars.packages", PACKAGES)
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-        .config("spark.sql.catalog.glue", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.glue.type", "glue")
-        .config("spark.sql.catalog.glue.warehouse", f"s3://{s3_bucket}/warehouse")
-        .config("spark.sql.catalog.glue.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
-        .config("spark.sql.catalog.glue.client.region", aws_region)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
-    )
-    spark.sparkContext.setLogLevel("ERROR")
-    return spark
 
 
 def read_events(
@@ -449,7 +425,7 @@ def run_incremental(spark: SparkSession, args: argparse.Namespace) -> dict:
 
 def main() -> None:
     args = parse_args()
-    spark = build_spark(args.s3_bucket, args.aws_region)
+    spark = build_spark("silver_events_to_funnel", args.s3_bucket, args.aws_region)
 
     if args.mode == "full":
         run_full(spark, args)

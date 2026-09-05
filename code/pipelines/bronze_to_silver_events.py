@@ -8,14 +8,9 @@ from functools import reduce
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
+from spark_session import build_spark
 
 load_dotenv()
-
-PACKAGES = ",".join([
-    "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.2",
-    "org.apache.iceberg:iceberg-aws-bundle:1.9.2",
-    "org.apache.hadoop:hadoop-aws:3.3.4",
-])
 
 TARGET_TABLES = {
     "prod": "glue.ecommerce_lakehouse.silver_events",
@@ -80,25 +75,6 @@ def parse_args() -> argparse.Namespace:
     if args.from_datetime and args.from_datetime >= args.to_datetime:
         parser.error("--from-datetime은 --to-datetime보다 이전이어야 합니다")
     return args
-
-
-def build_spark(s3_bucket: str, aws_region: str) -> SparkSession:
-    spark = (
-        SparkSession.builder.appName("bronze_to_silver_events")
-        .config("spark.driver.memory", "8g")
-        .config("spark.jars.packages", PACKAGES)
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-        .config("spark.sql.catalog.glue", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.glue.type", "glue")
-        .config("spark.sql.catalog.glue.warehouse", f"s3://{s3_bucket}/warehouse")
-        .config("spark.sql.catalog.glue.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
-        .config("spark.sql.catalog.glue.client.region", aws_region)
-        .config("spark.hadoop.fs.s3a.endpoint.region", aws_region)
-        .config("spark.sql.session.timeZone", "UTC")
-        .getOrCreate()
-    )
-    spark.sparkContext.setLogLevel("ERROR")
-    return spark
 
 
 def read_zone(
@@ -192,7 +168,7 @@ def write_batch_output(df: DataFrame, path: str) -> None:
 
 def main() -> None:
     args = parse_args()
-    spark = build_spark(args.s3_bucket, args.aws_region)
+    spark = build_spark("bronze_to_silver_events", args.s3_bucket, args.aws_region)
 
     zones = args.zones.split(",")
     interval = f"[{args.from_datetime}, {args.to_datetime})" if args.from_datetime else "(전체)"

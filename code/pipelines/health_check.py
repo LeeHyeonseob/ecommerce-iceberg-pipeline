@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from iceberg_maintenance import build_spark
+from spark_session import build_spark
 
 
 def parse_args() -> argparse.Namespace:
@@ -15,7 +15,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    spark = build_spark(args.s3_bucket, args.aws_region)
+    spark = build_spark("health_check", args.s3_bucket, args.aws_region, log_level="WARN")
     query_dir = Path(__file__).parents[1] / "health-queries"
     results = {}
     try:
