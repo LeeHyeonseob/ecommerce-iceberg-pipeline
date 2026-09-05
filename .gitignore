@@ -78,5 +78,6 @@ logs/
 
 # === 로컬 전용 문서 (레포에 올리지 않음, README.md만 예외) ===
 docs/
+backup/
 **/README.md
 !/README.md
