@@ -46,7 +46,7 @@ def ecommerce_incremental():
         fi
         RUN_TOKEN=$(printf '%s' '{{{{ run_id }}}}' | sha256sum | cut -c1-16)
         BATCH_PATH="s3a://$S3_BUCKET/control/funnel-batches/run_id=$RUN_TOKEN/attempt={{{{ ti.try_number }}}}/"
-        python {PIPELINE_DIR}/bronze_to_silver_events.py \\
+        docker exec spark-runner python {PIPELINE_DIR}/bronze_to_silver_events.py \\
           --env '{{{{ params.pipeline_env }}}}' \\
           --from-datetime "$FROM_DATETIME" \\
           --to-datetime "$TO_DATETIME" \\
@@ -68,7 +68,7 @@ def ecommerce_incremental():
         if [ "$EVENT_COUNT" -eq 0 ]; then
           echo '{{"affected_key_count": 0, "funnel_dates": []}}'
         else
-          python {PIPELINE_DIR}/silver_events_to_funnel.py \\
+          docker exec spark-runner python {PIPELINE_DIR}/silver_events_to_funnel.py \\
             --mode incremental \\
             --env '{{{{ params.pipeline_env }}}}' \\
             --batch-input-path "$BATCH_PATH"
@@ -94,14 +94,14 @@ def ecommerce_incremental():
         ARGS="--env {{{{ params.pipeline_env }}}}"
         [ -z "$EVENT_DATES" ] || ARGS="$ARGS --event-dates $EVENT_DATES"
         [ -z "$FUNNEL_DATES" ] || ARGS="$ARGS --funnel-dates $FUNNEL_DATES"
-        python {PIPELINE_DIR}/silver_to_gold.py $ARGS
+        docker exec spark-runner python {PIPELINE_DIR}/silver_to_gold.py $ARGS
         """
 
     @task.bash(pool="spark_pool", do_xcom_push=False)
     def health_check() -> str:
         return f"""
         set -e
-        python {HEALTH_SCRIPT} \\
+        docker exec spark-runner python {HEALTH_SCRIPT} \\
           --s3-bucket "$S3_BUCKET" \\
           --aws-region "${{AWS_REGION:-ap-northeast-2}}"
         """

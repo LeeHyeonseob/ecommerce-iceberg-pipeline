@@ -23,7 +23,6 @@ x-airflow-common: &airflow-common
     - ../airflow/dags:/opt/airflow/dags:ro
     - ../code:/opt/project/code:ro
     - airflow-logs:/opt/airflow/logs
-    - airflow-ivy-cache:/home/airflow/.ivy2
   depends_on: &airflow-common-depends-on
     airflow-postgres:
       condition: service_healthy
@@ -31,6 +30,18 @@ x-airflow-common: &airflow-common
       condition: service_healthy
 
 services:
+  spark-runner:
+    build:
+      context: ..
+      dockerfile: infra/spark.Dockerfile
+    container_name: spark-runner
+    env_file:
+      - ../.env
+    volumes:
+      - ../code:/opt/project/code:ro
+      - spark-ivy-cache:/root/.ivy2
+    restart: unless-stopped
+
   airflow-postgres:
     image: postgres:16
     environment:
@@ -72,14 +83,7 @@ services:
         --lastname Admin
         --role Admin
         --email "$${AIRFLOW_ADMIN_EMAIL}" || true &&
-        airflow pools set spark_pool 1 "Spark 로컬 실행 직렬화"
-    restart: "no"
-
-  airflow-ivy-init:
-    <<: *airflow-common
-    user: "0:0"
-    command: ["bash", "-c", "chown -R 50000:0 /home/airflow/.ivy2"]
-    depends_on: {}
+        airflow pools set spark_pool 1 "spark-runner 작업 직렬화"
     restart: "no"
 
   airflow-apiserver:
@@ -96,8 +100,6 @@ services:
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
-        condition: service_completed_successfully
-      airflow-ivy-init:
         condition: service_completed_successfully
     restart: unless-stopped
 
@@ -159,16 +161,21 @@ services:
       start_period: 30s
     depends_on:
       <<: *airflow-common-depends-on
+      spark-runner:
+        condition: service_started
       airflow-apiserver:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
-      airflow-ivy-init:
-        condition: service_completed_successfully
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags:ro
+      - ../code:/opt/project/code:ro
+      - airflow-logs:/opt/airflow/logs
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:
   airflow-postgres-data:
   airflow-redis-data:
   airflow-logs:
-  airflow-ivy-cache:
+  spark-ivy-cache:

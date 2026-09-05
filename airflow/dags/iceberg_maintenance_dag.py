@@ -29,7 +29,7 @@ def iceberg_maintenance():
     @task.bash(pool="spark_pool", output_processor=parse_last_json)
     def maintain() -> str:
         return f"""
-        python {PIPELINE_DIR}/iceberg_maintenance.py \\
+        docker exec spark-runner python {PIPELINE_DIR}/iceberg_maintenance.py \\
           --s3-bucket "$S3_BUCKET" \\
           --aws-region "${{AWS_REGION:-ap-northeast-2}}"
         """
