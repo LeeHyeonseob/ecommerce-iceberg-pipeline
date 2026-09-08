@@ -76,8 +76,14 @@ logs/
 .vscode/
 .idea/
 
-# === 로컬 전용 문서 (레포에 올리지 않음, README.md만 예외) ===
-docs/
+# === 로컬 문서·산출물 ===
+docs/*
 backup/
 **/README.md
 !/README.md
+
+# docs의 공유 Markdown 지식만 버전 관리
+!docs/*.md
+!docs/*/
+docs/*/*
+!docs/*/*.md

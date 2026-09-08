@@ -10,7 +10,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# pemja(PyFlink 의존성) 소스빌드에 JDK 필요 (배경: CLAUDE.md §13-1)
+# pemja(PyFlink 의존성) 소스 빌드에 JDK 필요
 ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 RUN pip3 install apache-flink==1.19.3
@@ -23,12 +23,12 @@ RUN wget -q -P /opt/flink/lib/ \
 RUN wget -q -P /opt/flink/lib/ \
     https://repo1.maven.org/maven2/org/apache/flink/flink-parquet/1.19.3/flink-parquet-1.19.3.jar
 
-# Hadoop Configuration 등 (flink-s3-fs-hadoop plugins/는 격리된 클래스로더라 재사용 불가, 배경: CLAUDE.md §13-1)
+# Flink S3 플러그인은 클래스 로더가 격리되므로 Parquet job용 Hadoop client를 별도로 추가
 RUN wget -q -P /opt/flink/lib/ \
     https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-client-api/3.3.6/hadoop-client-api-3.3.6.jar && \
     wget -q -P /opt/flink/lib/ \
     https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-client-runtime/3.3.6/hadoop-client-runtime-3.3.6.jar
 
-# Parquet 구현체. 개별 parquet-column jar에 codegen 클래스 누락 이슈가 있어 bundle 사용 (배경: CLAUDE.md §15-1)
+# 개별 parquet-column jar에는 codegen 클래스가 부족해 bundle 사용
 RUN wget -q -P /opt/flink/lib/ \
     https://repo1.maven.org/maven2/org/apache/parquet/parquet-hadoop-bundle/1.13.1/parquet-hadoop-bundle-1.13.1.jar
