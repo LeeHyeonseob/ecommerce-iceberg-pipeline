@@ -35,8 +35,8 @@ USING iceberg
 PARTITIONED BY (funnel_date)
 TBLPROPERTIES (
     'format-version'               = '2',
-    'write.update.mode'            = 'copy-on-write',
-    'write.merge.mode'             = 'copy-on-write',
-    'write.delete.mode'            = 'copy-on-write',
+    'write.update.mode'            = 'merge-on-read',
+    'write.merge.mode'             = 'merge-on-read',
+    'write.delete.mode'            = 'merge-on-read',
     'write.target-file-size-bytes' = '134217728'
 );
