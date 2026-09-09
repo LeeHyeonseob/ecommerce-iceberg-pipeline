@@ -30,3 +30,8 @@ Spark Iceberg 유지보수와 Flink Parquet S3 적재를 기본 런타임 의존
 ## 에이전트 지침
 
 Spark, Hadoop, Iceberg, Flink jar 버전을 독립적으로 올리지 않는다. 버전 변경 시 S3 읽기, Parquet 쓰기와 `remove_orphan_files`까지 함께 검증한다.
+
+## 구현 근거
+
+- [Spark S3·Iceberg 설정](../../code/pipelines/spark_session.py)
+- [Flink 런타임 의존성](../../infra/flink.Dockerfile)

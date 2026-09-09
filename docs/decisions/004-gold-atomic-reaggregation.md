@@ -28,3 +28,8 @@
 ## 결과와 번복 조건
 
 Gold가 커져 날짜 단위 재집계도 SLA를 넘을 때 더 세밀한 grain이나 추가 사전 집계를 검토한다.
+
+## 구현 근거
+
+- [Gold 재집계 파이프라인](../../code/pipelines/silver_to_gold.py)
+- [Gold Iceberg DDL](../../code/ddl/)

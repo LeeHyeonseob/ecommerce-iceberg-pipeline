@@ -30,3 +30,8 @@
 ## 결과와 번복 조건
 
 전체 재구축과 증분 결과는 `updated_at`을 제외하고 같아야 한다. 100x에서 30일 evidence 조회가 병목이면 bucketing이나 별도 구매 근거 테이블을 검토한다.
+
+## 구현 근거
+
+- [Silver Funnel 재계산](../../code/pipelines/silver_events_to_funnel.py)
+- [Airflow 증분 DAG](../../airflow/dags/ecommerce_incremental.py)

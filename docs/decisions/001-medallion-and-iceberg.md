@@ -27,3 +27,8 @@
 ## 결과와 번복 조건
 
 Bronze는 Iceberg compaction을 사용할 수 없다. Bronze 파일 수가 sink 조정으로 관리되지 않을 때 별도 Parquet 병합 또는 Bronze Iceberg 전환을 다시 검토한다.
+
+## 구현 근거
+
+- [Flink Bronze consumer](../../code/pipelines/raw_zone_consumer.py)
+- [Silver·Gold Iceberg DDL](../../code/ddl/)

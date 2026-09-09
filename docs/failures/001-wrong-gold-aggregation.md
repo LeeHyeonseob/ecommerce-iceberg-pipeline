@@ -29,3 +29,8 @@
 ## 에이전트 지침
 
 Gold 지표를 수정할 때 데이터 grain과 분자·분모 포함 관계를 먼저 검증한다. Funnel에서 GMV를 계산하거나 NULL과 `ALL`을 합치지 않는다.
+
+## 구현 근거
+
+- [Gold 집계 로직](../../code/pipelines/silver_to_gold.py)
+- [Gold Funnel DDL](../../code/ddl/04_gold_funnel_daily.sql)

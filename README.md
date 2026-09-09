@@ -71,11 +71,11 @@ Iceberg의 `MERGE`, 조건부 파티션 교체, snapshot으로 이를 처리한�
 
 | 검증 항목 | 결과 |
 | --- | --- |
-| COW 재작성 비용 | 한 컬럼 UPDATE에 1,329,334행 / 105~118MB 재작성 |
+| 전환 전 COW 재작성 비용 | 한 컬럼 UPDATE에 1,329,334행 / 105~118MB 재작성 |
 | 파티션 가지치기 | 하루 2.28MB vs 전체 31일 78.3MB, 약 34배 차이 |
 | 지연 전환 | 30일 기준 394,493건 |
 
-현재 운영 테이블은 COW(Copy-on-Write)다. BI 읽기에 유리하지만 갱신 시 파일을 다시 쓰므로, 쓰기 증폭이 커지면 MOR(Merge-on-Read) 전환을 검토한다. snapshot은 cross-session 윈도우와 같은 30일을 보관 기준으로 둔다.
+이 재작성 비용과 30일 퍼널 갱신 범위를 근거로 Silver는 MOR(Merge-on-Read)로 전환하고, 날짜 전체를 교체하는 Gold는 COW(Copy-on-Write)를 유지한다. snapshot은 cross-session 윈도우와 같은 30일을 보관 기준으로 둔다.
 
 ## 5. 증분 처리·멱등성·재처리
 
@@ -116,24 +116,25 @@ silver_events → silver_funnel → Gold 5개 → health_check
 
 Airflow의 Bash Task는 `spark-runner` 컨테이너에 Spark batch를 제출한다. `spark_pool` 슬롯을 1개로 설정해 증분 MERGE와 유지보수가 같은 파티션을 동시에 갱신하지 않도록 직렬화한다.
 
-별도 `iceberg_maintenance` DAG는 테이블별로 다음 순서를 실행한다.
+MOR 전환 후 필요한 유지보수 순서는 다음과 같다.
 
 ```text
-rewrite_data_files → rewrite_manifests → expire_snapshots → remove_orphan_files
+rewrite_position_delete_files → rewrite_data_files → rewrite_manifests → expire_snapshots → remove_orphan_files
 ```
 
-현재 테이블은 COW이므로 MOR position delete 파일이 없어 `rewrite_position_delete_files`는 실행하지 않는다. 컴팩션과 MERGE의 충돌·복구 방식은 9절에서 다룬다.
+Silver는 MOR, Gold는 날짜 파티션 overwrite 중심의 COW를 사용한다. 현재 `iceberg_maintenance` DAG는 `rewrite_data_files`부터 실행하므로 MOR의 position delete 정리는 다음 단계에서 보완한다.
 
 ## 7. 운영 가시성: 5분 헬스체크
 
-운영자는 증분 DAG 마지막 태스크의 로그와 Superset 운영 탭에서 최신 파티션·파일 상태·품질 지표를 확인한다. `code/health-queries/`의 Iceberg 메타테이블 기반 쿼리는 7개다.
+운영자는 증분 DAG 마지막 태스크의 로그와 Superset 운영 탭에서 최신 파티션·파일 상태·품질 지표를 확인한다. `code/health-queries/`에는 다음 쿼리를 보관한다.
 
-| 영역 | 확인 항목 |
-| --- | --- |
-| Silver·Gold | 최신 파티션, 파일 수·평균 크기·small file 수 |
-| Iceberg snapshots | 최신 커밋 시각, snapshot 누적 수 |
-| Iceberg manifests | manifest 수 |
-| Iceberg history | HEAD 전환 시각, 현재 계보 밖 snapshot 수 |
+- Silver freshness: 최신 이벤트 날짜
+- Silver file health: `files` 메타테이블의 파일 수·평균 크기·small file 수
+- Gold freshness: 테이블별 최신 집계 날짜
+- Gold file health: `files` 메타테이블의 파일 수·평균 크기·small file 수
+- Snapshot health: `snapshots` 메타테이블의 최신 커밋 시각·누적 수
+- Manifest health: `manifests` 메타테이블의 manifest 수
+- History health: `history` 메타테이블의 HEAD 전환 시각·현재 계보 밖 snapshot 수
 
 `health_check.py`가 쿼리를 한 Spark 세션에서 실행한다. 현재는 결과를 로그로 남기는 수준이며, 정상 기준선과 알림 대상이 정해지면 임계값 기반 실패·알림을 추가한다.
 
