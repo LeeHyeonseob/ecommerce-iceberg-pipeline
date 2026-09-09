@@ -3,8 +3,8 @@
 | 데이터 | Grain / 논리 키 | 파티션 | 쓰기 방식 |
 | --- | --- | --- | --- |
 | Bronze raw zone | 이벤트 한 건 | 수집 시간 `raw_datetime` | Flink append-only Parquet |
-| `silver_events` | 이벤트 한 건 / `event_id` | `event_date` | 영향 날짜 Iceberg MERGE |
-| `silver_funnel` | `(user_session, product_id)` | `funnel_date` | 영향 키 전체 이력 재계산 후 MERGE |
+| `silver_events` | 이벤트 한 건 / `event_id` | `event_date` | MOR, 영향 날짜 Iceberg MERGE |
+| `silver_funnel` | `(user_session, product_id)` | `funnel_date` | MOR, 영향 키 전체 이력 재계산 후 MERGE |
 | `gold_daily_gmv` | 일 | `summary_date` | 영향 날짜 overwrite |
 | `gold_funnel_daily` | 일·카테고리 및 `ALL` | `summary_date` | 영향 날짜 overwrite |
 | `gold_category_gmv` | 일·차원 종류·값 | `summary_date` | 영향 날짜 overwrite |

@@ -22,10 +22,12 @@ Flink raw zone jobs 시작
 
 ## Iceberg 유지보수
 
+MOR Silver에 필요한 목표 순서는 다음과 같다.
+
 ```text
-rewrite_data_files → rewrite_manifests
+rewrite_position_delete_files → rewrite_data_files → rewrite_manifests
 → expire_snapshots(retain_last=1, 기본 30일)
 → remove_orphan_files
 ```
 
-현재 운영 테이블은 COW라 position delete rewrite를 실행하지 않는다. 유지보수와 증분은 같은 `spark_pool` 1슬롯으로 직렬화한다. 현재 유지보수 DAG는 수동 실행이며 정기 스케줄은 미구현이다.
+Silver는 MOR이므로 position delete 파일 정리가 필요하다. Gold는 날짜 파티션 overwrite 중심의 COW를 유지한다. 유지보수와 증분은 같은 `spark_pool` 1슬롯으로 직렬화한다. 현재 유지보수 코드는 `rewrite_data_files`부터 실행하며, position delete 정리와 정기 스케줄은 아직 미구현이다.
