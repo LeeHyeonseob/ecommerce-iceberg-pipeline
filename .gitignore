@@ -87,3 +87,6 @@ backup/
 !docs/*/
 docs/*/*
 !docs/*/*.md
+
+# 개인 작업 목록
+docs/TODO.md
