@@ -60,6 +60,11 @@ FUNNEL_COLUMNS = [
     "brand",
     "updated_at",
 ]
+FUNNEL_CHANGE_COLUMNS = [
+    column
+    for column in FUNNEL_COLUMNS
+    if column not in {"user_session", "product_id", "updated_at"}
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -207,11 +212,14 @@ def merge_into_funnel(
     if funnel_dates:
         date_values = ", ".join(f"DATE '{value}'" for value in sorted(funnel_dates))
         date_condition = f" AND t.funnel_date IN ({date_values})"
+    changed = " OR ".join(
+        f"NOT (t.`{column}` <=> s.`{column}`)" for column in FUNNEL_CHANGE_COLUMNS
+    )
     spark.sql(f"""
         MERGE INTO {target_table} t
         USING silver_funnel_batch s
           ON t.user_session = s.user_session AND t.product_id = s.product_id{date_condition}
-        WHEN MATCHED THEN UPDATE SET *
+        WHEN MATCHED AND ({changed}) THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
 

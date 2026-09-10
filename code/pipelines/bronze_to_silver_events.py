@@ -52,6 +52,9 @@ SILVER_COLUMNS = [
     "pipeline_lag_sec",
     "updated_at",
 ]
+SILVER_CHANGE_COLUMNS = [
+    column for column in SILVER_COLUMNS if column not in {"event_id", "updated_at"}
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -150,12 +153,15 @@ def merge_into_silver(
         return
     df.createOrReplaceTempView("batch")
     date_values = ", ".join(f"DATE '{value}'" for value in event_dates)
+    changed = " OR ".join(
+        f"NOT (t.`{column}` <=> s.`{column}`)" for column in SILVER_CHANGE_COLUMNS
+    )
     spark.sql(
         f"""
         MERGE INTO {target_table} t
         USING batch s ON t.event_id = s.event_id
           AND t.event_date IN ({date_values})
-        WHEN MATCHED THEN UPDATE SET *
+        WHEN MATCHED AND ({changed}) THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
         """
     )
