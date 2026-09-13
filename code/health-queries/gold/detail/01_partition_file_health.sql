@@ -1,21 +1,16 @@
--- Gold 테이블별 data 파일 상태(COW이므로 position delete는 대상 아님)
--- Gold는 일별 집계라 파일이 언제나 128MB에 한참 못 미친다. 크기 임계값은 신호가 되지 못하므로
--- '파티션당 data file이 2개 이상인가'를 compaction 신호로 본다.
+-- Gold 파티션별 data 파일 상태(COW이므로 position delete는 대상 아님)
+-- __TABLE_FILTER__와 __PARTITION_LIMIT__는 health_check.py가 --detail-tables/--detail-partitions로 치환한다.
+-- Gold는 파일 크기가 아니라 data_file_count가 1을 넘는지가 compaction 신호다.
 SELECT table_name,
-       COUNT(*) AS partition_count,
-       SUM(data_file_count) AS data_file_count,
-       SUM(CASE WHEN data_file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
-       MAX(data_file_count) AS max_files_in_partition,
-       ROUND(SUM(total_bytes) / SUM(data_file_count) / 1024 / 1024, 2) AS avg_data_file_mb,
-       ROUND(MIN(min_bytes) / 1024 / 1024, 2) AS min_data_file_mb,
-       ROUND(MAX(max_bytes) / 1024 / 1024, 2) AS max_data_file_mb
+       partition_date,
+       data_file_count,
+       avg_data_file_mb
 FROM (
   SELECT table_name,
          partition_date,
          COUNT(*) AS data_file_count,
-         SUM(file_size_in_bytes) AS total_bytes,
-         MIN(file_size_in_bytes) AS min_bytes,
-         MAX(file_size_in_bytes) AS max_bytes
+         ROUND(AVG(file_size_in_bytes) / 1024 / 1024, 2) AS avg_data_file_mb,
+         ROW_NUMBER() OVER (PARTITION BY table_name ORDER BY partition_date DESC) AS recency_rank
   FROM (
     SELECT 'gold_daily_gmv' AS table_name, partition.summary_date AS partition_date, file_size_in_bytes
     FROM glue.ecommerce_lakehouse.gold_daily_gmv.files WHERE content = 0
@@ -32,6 +27,8 @@ FROM (
     SELECT 'gold_data_quality', partition.summary_date, file_size_in_bytes
     FROM glue.ecommerce_lakehouse.gold_data_quality.files WHERE content = 0
   ) f
+  WHERE __TABLE_FILTER__
   GROUP BY table_name, partition_date
-) p
-GROUP BY table_name ORDER BY table_name;
+) ranked
+WHERE recency_rank <= __PARTITION_LIMIT__
+ORDER BY table_name, partition_date;

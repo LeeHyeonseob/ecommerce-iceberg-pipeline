@@ -1,7 +1,5 @@
 slice_name: "Iceberg \uD14C\uC774\uBE14 \uD5EC\uC2A4"
-description: "\uD604\uC7AC Iceberg \uC2A4\uB0C5\uC0F7\uC758 \uB370\uC774\uD130 \uD30C\
-  \uC77C \uC218, \uD3C9\uADE0 \uD30C\uC77C \uD06C\uAE30, \uD589 \uC218, \uCD5C\uC885\
-  \ \uAC31\uC2E0 \uC2DC\uAC01."
+description: "현재 Iceberg 스냅샷의 data 파일 수, 평균 파일 크기, data 레코드 수, position delete 파일·레코드 수, 최종 갱신 시각. MOR인 Silver의 data 레코드 수는 실제 행 수가 아니다."
 certified_by: null
 certification_details: null
 viz_type: table
@@ -15,9 +13,15 @@ params:
   metrics: []
   all_columns:
   - table_name
-  - file_count
-  - avg_file_mb
-  - row_count
+  - partition_count
+  - data_file_count
+  - multi_file_partition_count
+  - max_files_in_partition
+  - small_data_file_count
+  - avg_data_file_mb
+  - data_record_count
+  - position_delete_file_count
+  - position_delete_record_count
   - last_updated_at
   percent_metrics: []
   adhoc_filters: []
@@ -29,12 +33,12 @@ params:
   annotation_layers: []
 query_context: '{"datasource": {"id": 2, "type": "table"}, "force": false, "queries":
   [{"filters": [], "extras": {"having": "", "where": ""}, "applied_time_extras": {},
-  "columns": ["table_name", "file_count", "avg_file_mb", "row_count", "last_updated_at"],
+  "columns": ["table_name", "partition_count", "data_file_count", "multi_file_partition_count", "max_files_in_partition", "small_data_file_count", "avg_data_file_mb", "data_record_count", "position_delete_file_count", "position_delete_record_count", "last_updated_at"],
   "orderby": [], "annotation_layers": [], "row_limit": 1000, "series_limit": 0, "order_desc":
   true, "url_params": {}, "custom_params": {}, "custom_form_data": {}, "post_processing":
   []}], "form_data": {"datasource": "2__table", "viz_type": "table", "query_mode":
   "raw", "groupby": [], "temporal_columns_lookup": {"last_updated_at": true}, "metrics":
-  [], "all_columns": ["table_name", "file_count", "avg_file_mb", "row_count", "last_updated_at"],
+  [], "all_columns": ["table_name", "partition_count", "data_file_count", "multi_file_partition_count", "max_files_in_partition", "small_data_file_count", "avg_data_file_mb", "data_record_count", "position_delete_file_count", "position_delete_record_count", "last_updated_at"],
   "percent_metrics": [], "adhoc_filters": [], "order_by_cols": [], "row_limit": 1000,
   "table_timestamp_format": "smart_date", "allow_render_html": true, "show_cell_bars":
   true, "extra_form_data": {}, "dashboards": [], "force": false, "result_format":

@@ -1,55 +1,172 @@
 table_name: iceberg_table_health
 main_dttm_col: last_updated_at
-description: "Iceberg 현재 스냅샷의 파일 수, 평\
-  균 파일 크기, 행 수, 최종 갱신 시\
-  각"
+description: "Iceberg 현재 스냅샷의 파티션·data 파일 현황(파일 수, 파티션당 복수 파일 수, 평균 크기, Silver의 목표 크기 미달 수), position delete 파일·레코드 수, 최종 갱신 시각. data_record_count는 data file 기준이라 MOR인 Silver의 실제 행 수가 아니다"
 default_endpoint: null
 offset: 0
-cache_timeout: 86400
+cache_timeout: 3600
 catalog: null
 schema: ecommerce_lakehouse
 sql: |
-  SELECT 'silver_events' AS table_name, f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."silver_events$snapshots") AS last_updated_at
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."silver_events$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'silver_funnel', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."silver_funnel$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."silver_funnel$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'gold_daily_gmv', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."gold_daily_gmv$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."gold_daily_gmv$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'gold_funnel_daily', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."gold_funnel_daily$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."gold_funnel_daily$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'gold_category_gmv', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."gold_category_gmv$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."gold_category_gmv$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'gold_pipeline_sla', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."gold_pipeline_sla$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."gold_pipeline_sla$files" WHERE content = 0) f
-  UNION ALL
-  SELECT 'gold_data_quality', f.file_count, f.avg_file_mb, f.row_count,
-         (SELECT max(committed_at) FROM "ecommerce_lakehouse"."gold_data_quality$snapshots")
-  FROM (SELECT count(*) AS file_count, round(avg(file_size_in_bytes) / 1048576.0, 2) AS avg_file_mb,
-               sum(record_count) AS row_count
-        FROM "ecommerce_lakehouse"."gold_data_quality$files" WHERE content = 0) f
+  -- Athena의 $files는 data 파일만 노출한다(content=1 행이 없어 delete 집계가 불가능하다).
+  -- Spark의 .files와 다른 점이라 delete 지표는 현재 스냅샷의 summary에서 가져온다.
+  -- 파티션 단위 지표도 $files에 partition 컬럼이 없어 $partitions에서 따로 구한다.
+  -- 128MB는 Silver의 write.target-file-size-bytes다. 일별 집계인 Gold는 모든 파일이
+  -- 항상 미달이라 신호가 되지 못하므로 NULL로 두고, Gold의 신호는 multi_file_partition_count다.
+  WITH f AS (
+    SELECT 'silver_events' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           sum(CASE WHEN file_size_in_bytes < 134217728 THEN 1 ELSE 0 END) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."silver_events$files"
+    UNION ALL
+    SELECT 'silver_funnel' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           sum(CASE WHEN file_size_in_bytes < 134217728 THEN 1 ELSE 0 END) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."silver_funnel$files"
+    UNION ALL
+    SELECT 'gold_daily_gmv' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           CAST(NULL AS BIGINT) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."gold_daily_gmv$files"
+    UNION ALL
+    SELECT 'gold_funnel_daily' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           CAST(NULL AS BIGINT) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."gold_funnel_daily$files"
+    UNION ALL
+    SELECT 'gold_category_gmv' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           CAST(NULL AS BIGINT) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."gold_category_gmv$files"
+    UNION ALL
+    SELECT 'gold_pipeline_sla' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           CAST(NULL AS BIGINT) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."gold_pipeline_sla$files"
+    UNION ALL
+    SELECT 'gold_data_quality' AS table_name,
+           count(*) AS data_file_count,
+           sum(file_size_in_bytes) AS data_bytes,
+           CAST(NULL AS BIGINT) AS small_data_file_count,
+           sum(record_count) AS data_record_count
+    FROM "ecommerce_lakehouse"."gold_data_quality$files"
+  ),
+  p AS (
+    SELECT 'silver_events' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."silver_events$partitions"
+    UNION ALL
+    SELECT 'silver_funnel' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."silver_funnel$partitions"
+    UNION ALL
+    SELECT 'gold_daily_gmv' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."gold_daily_gmv$partitions"
+    UNION ALL
+    SELECT 'gold_funnel_daily' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."gold_funnel_daily$partitions"
+    UNION ALL
+    SELECT 'gold_category_gmv' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."gold_category_gmv$partitions"
+    UNION ALL
+    SELECT 'gold_pipeline_sla' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."gold_pipeline_sla$partitions"
+    UNION ALL
+    SELECT 'gold_data_quality' AS table_name,
+           count(*) AS partition_count,
+           sum(CASE WHEN file_count > 1 THEN 1 ELSE 0 END) AS multi_file_partition_count,
+           max(file_count) AS max_files_in_partition
+    FROM "ecommerce_lakehouse"."gold_data_quality$partitions"
+  ),
+  s AS (
+    SELECT table_name, committed_at AS last_updated_at,
+           position_delete_file_count, position_delete_record_count
+    FROM (
+    SELECT 'silver_events' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."silver_events$snapshots"
+    UNION ALL
+    SELECT 'silver_funnel' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."silver_funnel$snapshots"
+    UNION ALL
+    SELECT 'gold_daily_gmv' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."gold_daily_gmv$snapshots"
+    UNION ALL
+    SELECT 'gold_funnel_daily' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."gold_funnel_daily$snapshots"
+    UNION ALL
+    SELECT 'gold_category_gmv' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."gold_category_gmv$snapshots"
+    UNION ALL
+    SELECT 'gold_pipeline_sla' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."gold_pipeline_sla$snapshots"
+    UNION ALL
+    SELECT 'gold_data_quality' AS table_name, committed_at,
+           CAST(summary['total-delete-files'] AS BIGINT) AS position_delete_file_count,
+           CAST(summary['total-position-deletes'] AS BIGINT) AS position_delete_record_count,
+           row_number() OVER (ORDER BY committed_at DESC) AS rn
+    FROM "ecommerce_lakehouse"."gold_data_quality$snapshots"
+    ) ranked
+    WHERE rn = 1
+  )
+  SELECT f.table_name,
+         p.partition_count,
+         f.data_file_count,
+         p.multi_file_partition_count,
+         p.max_files_in_partition,
+         f.small_data_file_count,
+         round(f.data_bytes / 1048576.0 / nullif(f.data_file_count, 0), 2) AS avg_data_file_mb,
+         f.data_record_count,
+         s.position_delete_file_count,
+         s.position_delete_record_count,
+         s.last_updated_at
+  FROM f
+  JOIN p ON p.table_name = f.table_name
+  JOIN s ON s.table_name = f.table_name
 params: null
 template_params: null
 filter_select_enabled: true
@@ -69,8 +186,56 @@ metrics:
   extra: null
   warning_text: null
 columns:
-- column_name: avg_file_mb
-  verbose_name: "평균 파일 MB"
+- column_name: partition_count
+  verbose_name: "파티션 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: multi_file_partition_count
+  verbose_name: "복수 파일 파티션 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: "$partitions.file_count가 2 이상인 파티션 수. Gold의 주 compaction 신호"
+  python_date_format: null
+  extra: null
+- column_name: max_files_in_partition
+  verbose_name: "파티션 최대 파일 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: small_data_file_count
+  verbose_name: "목표 크기 미달 파일 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: "Silver만 계산한다(128MB = write.target-file-size-bytes). 목표 크기 미달 현황이며 복수 파일 누적과 함께 판단한다. 일별 집계인 Gold는 항상 미달이라 신호가 되지 못해 NULL이다"
+  python_date_format: null
+  extra: null
+- column_name: avg_data_file_mb
+  verbose_name: "평균 data 파일 MB"
   is_dttm: false
   is_active: true
   type: DOUBLE
@@ -81,8 +246,8 @@ columns:
   description: null
   python_date_format: null
   extra: null
-- column_name: file_count
-  verbose_name: "데이터 파일 수"
+- column_name: data_file_count
+  verbose_name: "data 파일 수"
   is_dttm: false
   is_active: true
   type: BIGINT
@@ -91,6 +256,42 @@ columns:
   filterable: true
   expression: null
   description: null
+  python_date_format: null
+  extra: null
+- column_name: data_record_count
+  verbose_name: "data 레코드 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: "$files(data 파일)의 record_count 합계. MOR인 Silver에서는 삭제 표시된 행이 포함돼 실제 행 수보다 크다"
+  python_date_format: null
+  extra: null
+- column_name: position_delete_file_count
+  verbose_name: "delete 파일 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: "현재 스냅샷 summary의 total-delete-files. Athena의 $files는 data 파일만 노출하므로 여기서 가져온다. MOR compaction 신호이며 COW인 Gold는 항상 0이다"
+  python_date_format: null
+  extra: null
+- column_name: position_delete_record_count
+  verbose_name: "delete 레코드 수"
+  is_dttm: false
+  is_active: true
+  type: BIGINT
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: "현재 스냅샷 summary의 total-position-deletes. MOR에서 조회 시 적용해야 하는 position delete 레코드 수이며, 실제 행 수 계산에 직접 사용하지 않는다"
   python_date_format: null
   extra: null
 - column_name: last_updated_at
@@ -98,18 +299,6 @@ columns:
   is_dttm: true
   is_active: true
   type: TIMESTAMP
-  advanced_data_type: null
-  groupby: true
-  filterable: true
-  expression: null
-  description: null
-  python_date_format: null
-  extra: null
-- column_name: row_count
-  verbose_name: "행 수"
-  is_dttm: false
-  is_active: true
-  type: BIGINT
   advanced_data_type: null
   groupby: true
   filterable: true

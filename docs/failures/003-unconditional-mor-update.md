@@ -40,9 +40,26 @@ Silver를 COW에서 MOR로 전환한 뒤 같은 입력을 반복 처리해 멱�
 
 ## 현재 대응
 
-MOR 전환과 정확성 검증까지 완료했다. 다음 변경에서는 `updated_at`을 제외한 실제 데이터 컬럼이 달라졌을 때만 UPDATE하도록 MERGE 조건을 추가한다. 수정 후 동일 배치를 다시 실행해 행 수·KPI뿐 아니라 data/delete file 수도 증가하지 않는지 확인한다.
+해결 완료 (2026-09-10).
 
-Compaction은 이미 만들어진 파일을 정리할 뿐 불필요한 UPDATE의 원인을 없애지 못하므로, 변경 감지를 먼저 적용한 뒤 자동화한다.
+`updated_at`을 제외한 실제 데이터 컬럼이 달라졌을 때만 UPDATE하도록 두 Silver MERGE에 변경 감지 조건을 추가했다. 비교는 `NOT (t.col <=> s.col)`의 OR 결합이라 NULL 컬럼도 안전하게 판정한다.
+
+```sql
+WHEN MATCHED AND (NOT (t.`col` <=> s.`col`) OR ...) THEN UPDATE SET *
+```
+
+### 수정 후 재검증
+
+동일 배치 재실행 시 data/delete file 증가는 방지했으며, 변경 파티션이 없는 빈 snapshot은 1개 생성됐다.
+
+| 테이블 | data files | position delete files | snapshots |
+| --- | ---: | ---: | ---: |
+| `silver_events` | 36 → 36 | 2 → 2 | 5 → 6 |
+| `silver_funnel` | 83 → 83 | 52 → 52 | 4 → 5 |
+
+MERGE 자체는 매칭 행이 없어도 commit되므로 snapshot 1개는 계속 늘어난다. 파일 증가라는 원인은 제거했지만 snapshot 증가까지 없앤 것은 아니다.
+
+빈 snapshot은 `expire_snapshots`가 보존 기간 이후 정리한다. 기존에 쌓인 파일은 compaction 대상이며, compaction은 이미 만들어진 파일을 정리할 뿐 불필요한 UPDATE의 원인을 없애지 못하므로 변경 감지를 먼저 적용한 이 순서가 맞다.
 
 ## 에이전트 지침
 
