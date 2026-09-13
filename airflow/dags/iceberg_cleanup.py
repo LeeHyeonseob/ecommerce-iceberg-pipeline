@@ -46,7 +46,9 @@ def iceberg_cleanup():
         env={
             "MAINT_TABLES": "{{ params.tables }}",
             "MAINT_RETENTION_DAYS": "{{ params.retention_days }}",
-            "MAINT_AS_OF": "{{ data_interval_end.strftime('%Y-%m-%d %H:%M:%S') }}",
+            # data_interval_end는 수동 트리거에서 정의되지 않는다. run_after는 항상 있고
+            # CronTriggerTimetable에서는 두 값이 같다.
+            "MAINT_AS_OF": "{{ dag_run.run_after.strftime('%Y-%m-%d %H:%M:%S') }}",
         },
         append_env=True,
     )

@@ -109,8 +109,9 @@ def ecommerce_incremental():
 
     # 재작성은 주 1회다. 요일 판단을 증분 쪽에 두어, 소비 DAG가 조건을 모르게 한다.
     @task.short_circuit
-    def is_compaction_day(data_interval_end=None) -> bool:
-        return data_interval_end.weekday() == COMPACTION_WEEKDAY
+    def is_compaction_day(dag_run=None) -> bool:
+        # data_interval_end는 수동 트리거에서 정의되지 않는다.
+        return dag_run.run_after.weekday() == COMPACTION_WEEKDAY
 
     # 재작성 완료를 기다리지 않는다. 기다리면 증분 완료 시각이 유지보수 실패에 종속된다.
     # retries=0으로 둬서 trigger 재시도가 중복 실행을 만들지 않게 한다.
