@@ -2,19 +2,14 @@ import os
 from datetime import timedelta
 
 import pendulum
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sdk import dag, task
+from dag_utils import PIPELINE_DIR, parse_last_json
 
-
-PIPELINE_DIR = "/opt/project/code/pipelines"
 HEALTH_SCRIPT = f"{PIPELINE_DIR}/health_check.py"
-def parse_last_json(output: str) -> dict:
-    """명령 출력에서 마지막 JSON 결과만 XCom으로 반환한다."""
-    import json
 
-    for line in reversed(output.strip().splitlines()):
-        if line.strip().startswith("{") and line.strip().endswith("}"):
-            return json.loads(line.strip())
-    raise RuntimeError("파이프라인이 JSON 결과를 반환하지 않았습니다")
+# Iceberg 재작성 주기. 0=월 ... 6=일. 부모 배치의 UTC 데이터 구간 기준으로 판단한다.
+COMPACTION_WEEKDAY = 5
 
 
 @dag(
@@ -108,6 +103,21 @@ def ecommerce_incremental():
           --aws-region "${{AWS_REGION:-ap-northeast-2}}"
         """
 
+    # 재작성은 주 1회다. 요일 판단을 증분 쪽에 두어, 소비 DAG가 조건을 모르게 한다.
+    @task.short_circuit
+    def is_compaction_day(data_interval_end=None) -> bool:
+        return data_interval_end.weekday() == COMPACTION_WEEKDAY
+
+    # 재작성 완료를 기다리지 않는다. 기다리면 증분 완료 시각이 유지보수 실패에 종속된다.
+    # retries=0으로 둬서 trigger 재시도가 중복 실행을 만들지 않게 한다.
+    trigger_compaction = TriggerDagRunOperator(
+        task_id="trigger_compaction",
+        trigger_dag_id="iceberg_compaction",
+        wait_for_completion=False,
+        retries=0,
+        pool="default_pool",
+    )
+
     events = silver_events()
     funnels = silver_funnel()
     events >> funnels
@@ -116,6 +126,7 @@ def ecommerce_incremental():
     events >> gold_task
     funnels >> gold_task
     gold_task >> health
+    health >> is_compaction_day() >> trigger_compaction
 
 
 ecommerce_incremental()

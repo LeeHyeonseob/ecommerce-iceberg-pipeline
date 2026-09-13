@@ -119,24 +119,30 @@ Airflow의 Bash Task는 `spark-runner` 컨테이너에 Spark batch를 제출한�
 MOR 전환 후 필요한 유지보수 순서는 다음과 같다.
 
 ```text
-rewrite_position_delete_files → rewrite_data_files → rewrite_manifests → expire_snapshots → remove_orphan_files
+iceberg_compaction  주 1회   rewrite_data_files → rewrite_position_delete_files   Silver 2개
+iceberg_cleanup     주 1회   expire_snapshots → remove_orphan_files               7개 전부
 ```
 
-Silver는 MOR, Gold는 날짜 파티션 overwrite 중심의 COW를 사용한다. 현재 `iceberg_maintenance` DAG는 `rewrite_data_files`부터 실행하므로 MOR의 position delete 정리는 다음 단계에서 보완한다.
+재작성은 기존 파일을 즉시 물리 삭제하지 않고 새 snapshot을 만들므로 보존 기간 안에는 이전 상태를 조회할 수 있다. 삭제는 파일을 실제로 지우며 그 이후로는 되돌릴 수 없다. 위험도와 적정 주기가 달라 DAG를 나눴다. 재작성만으로는 저장 공간이 줄지 않으며, 공간은 `expire_snapshots`가 스냅샷을 만료시킬 때 회수된다.
+
+Gold는 COW overwrite로 파티션당 data file이 1개라 `rewrite_data_files`가 구조적으로 0건이어서 재작성 대상에서 뺀다. `rewrite_manifests`는 쓰기 시 자동 병합(`commit.manifest-merge.enabled` 기본 true)이 있어 정기 실행하지 않고 `--steps rewrite_manifests`로 필요할 때 돌린다. 실행할 단계는 `--steps`로 고르되 순서는 정의 순서로 고정된다. 삭제는 `--as-of`로 기준 시각을 고정해 재시도마다 범위가 넓어지지 않게 한다. 증분과 재작성의 순서는 `TriggerDagRunOperator`로 연결한다 — Airflow 풀은 태스크 단위라 cron 시간차로는 보장되지 않는다. 주기는 관측 후 조정할 초기값이다.
 
 ## 7. 운영 가시성: 5분 헬스체크
 
 운영자는 증분 DAG 마지막 태스크의 로그와 Superset 운영 탭에서 최신 파티션·파일 상태·품질 지표를 확인한다. `code/health-queries/`에는 다음 쿼리를 보관한다.
 
 - Silver freshness: 최신 이벤트 날짜
-- Silver file health: `files` 메타테이블의 파일 수·평균 크기·small file 수
+- Silver file health: data 파일 수·크기와 목표 크기(128MB) 미달 수, MOR의 position delete 파일·레코드 수
 - Gold freshness: 테이블별 최신 집계 날짜
-- Gold file health: `files` 메타테이블의 파일 수·평균 크기·small file 수
+- Gold file health: 파티션 수, data file이 2개 이상인 파티션 수, 파티션 최대 파일 수, 평균 크기
 - Snapshot health: `snapshots` 메타테이블의 최신 커밋 시각·누적 수
 - Manifest health: `manifests` 메타테이블의 manifest 수
 - History health: `history` 메타테이블의 HEAD 전환 시각·현재 계보 밖 snapshot 수
+- 파티션별 상세(`detail/`): Silver·Gold의 파티션 단위 파일 상태. `--detail`을 줬을 때만 실행
 
-`health_check.py`가 쿼리를 한 Spark 세션에서 실행한다. 현재는 결과를 로그로 남기는 수준이며, 정상 기준선과 알림 대상이 정해지면 임계값 기반 실패·알림을 추가한다.
+Gold는 일별 집계라 파일이 언제나 128MB에 한참 못 미친다. 크기 임계값이 신호가 되지 못하므로 Gold는 파티션당 파일 수를 compaction 신호로 쓴다. Silver는 `write.target-file-size-bytes`가 128MB로 지정돼 있어 미달 수가 의미를 갖는다.
+
+`health_check.py`가 쿼리를 한 Spark 세션에서 실행한다. 기본 실행은 테이블 요약만 포함하고, `--detail`을 지정하면 `detail/` 디렉터리의 파티션별 파일 상태까지 출력한다. 상세 쿼리는 metadata 스캔이 커지므로 `--detail-tables`와 `--detail-partitions`(기본 14)로 대상 테이블과 최근 파티션 수를 제한한다. 현재는 결과를 로그로 남기는 수준이며, 정상 기준선과 알림 대상이 정해지면 임계값 기반 실패·알림을 추가한다.
 
 Bronze는 plain Parquet이므로 Iceberg 메타테이블 기반 점검 대상이 아니다. Bronze 파일 크기와 도착 지연은 `verify_raw_zones.py`로 별도 진단한다.
 

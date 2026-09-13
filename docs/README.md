@@ -28,7 +28,7 @@ GMV·카테고리 GMV·SLA는 `silver_events`, 전환 지표는 `silver_funnel`,
 | `code/pipelines/bronze_to_silver_events.py` | 정제, dedup, Silver MERGE, 배치 산출물 |
 | `code/pipelines/silver_events_to_funnel.py` | 세션 퍼널과 30일 cross-session 전환 계산 |
 | `code/pipelines/silver_to_gold.py` | 이벤트·퍼널 grain별 KPI와 영향 날짜 재집계 |
-| `airflow/dags/` | 증분 순서, 재시도, Spark 작업 직렬화와 유지보수 |
+| `airflow/dags/` | 증분 순서, 재시도, Spark 작업 직렬화, 재작성·삭제 유지보수 DAG |
 | `code/ddl/` | Glue/Iceberg 테이블 계약 |
 | `code/health-queries/` | 데이터 및 Iceberg metadata 진단 |
 | `dashboard/superset/` | Athena 기반 대시보드 정의 |

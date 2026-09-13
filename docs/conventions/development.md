@@ -21,7 +21,7 @@
 - Spark 작업의 마지막 JSON 계약을 유지한다.
 - 테이블 쓰기 전 컬럼 순서와 타입을 DDL과 비교한다.
 - 대량 데이터는 XCom에 넣지 않는다.
-- Iceberg 쓰기와 유지보수는 `spark_pool` 밖에서 동시에 실행하지 않는다.
+- Iceberg 쓰기와 유지보수는 `spark_pool` 밖에서 동시에 실행하지 않는다. `docker exec spark-runner`로 직접 실행하면 풀 슬롯을 획득하지 않아 증분과 겹칠 수 있다. 유지보수 실행과 실측은 Airflow DAG를 통한다.
 
 ## 최소 검증
 
