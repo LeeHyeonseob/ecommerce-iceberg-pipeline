@@ -88,22 +88,44 @@ record 합계가 29,730건 줄었는데 이는 position delete 레코드 수와 
 파티션을 넘어 병합하지 않으므로 평균 크기는 목표 128MB가 아니라 파티션당 데이터량인
 28.73MB가 됐다. 이것이 정상이다.
 
-**남은 문제**: 새 스냅샷의 `total-delete-files`가 여전히 52, `total-position-deletes`가
-29,730이다. data file 재작성이 delete를 적용하면서 옛 delete file이 dangling으로 남았는데,
-`rewrite_position_delete_files`가 기본 옵션에서 0건을 반환해 정리되지 않았다.
-읽기에는 영향이 없을 것으로 보이나(새 data file은 sequence number가 높아 옛 delete가
-적용되지 않는다) 메타데이터에는 남아 있고 Superset의 delete 지표에도 52로 표시된다.
+**남은 문제였던 것**: 첫 실행 후 스냅샷의 `total-delete-files`가 여전히 52, `total-position-deletes`가
+29,730이었다. data file 재작성이 delete를 적용하면서 옛 delete file이 dangling으로 남았는데
+`rewrite_position_delete_files`가 기본 옵션에서 0건을 반환했기 때문이다. 아래 2차 실행으로 해소했다.
 
-### 옵션 조정 (실측 이후에만)
+### 2차 실행 (delete 옵션 조정) — 2026-09-13 완료
 
-첫 실측 결과 data file 쪽은 기본 옵션으로 해결됐다. 남은 것은 dangling delete file 52개다.
-아래 조건이 실측으로 충족됐으므로 delete 쪽만 조정한다. **한 번에 하나씩만 바꾼다.**
+`delete_rewrite_options=min-input-files=2`만 적용하고 `rewrite_options`는 비워 재실행했다.
 
-1. `delete_rewrite_options=min-input-files=2`를 적용해 `silver_funnel`을 다시 실행한다.
-   `rewrite_options`는 비워 둔다. data file은 이미 파티션당 1개다.
-2. `rewritten_delete_files_count`와 스냅샷 summary의 `total-delete-files`를 확인한다.
-3. 그래도 남으면 파티션별 delete 분포를 보고 다음 옵션을 판단한다.
+| 단계 | 결과 | 소요 |
+| --- | --- | ---: |
+| `rewrite_data_files` | 0건 | 2.2초 |
+| `rewrite_position_delete_files` | 52개 재작성 → 0개 생성, 148,832 bytes | 7.1초 |
 
-이는 잔재 정리용 일회성 설정이며 상시 정책이 아니다. `delete-file-threshold=1`의 상시 적용은
-MOR의 쓰기 절감 효과를 잃으므로 쓰지 않는다. `docker exec` 직접 실행은 `spark_pool`을
-우회해 증분과 겹칠 수 있으므로 쓰지 않는다.
+`added_delete_files_count=0`이다. 52개 전부 dangling이어서 병합 대상이 아니라 제거 대상이었다.
+재작성 바이트 148,832는 docs/failures/003에 기록된 delete bytes와 일치한다.
+data file은 이미 파티션당 1개라 0건으로 끝났다 — 무작업일 때 2.2초라는 고정 비용도 여기서 확인된다.
+
+최종 상태:
+
+| 지표 | MOR 전환 전 | 재처리 테스트 후 | 1차 후 | 2차 후 |
+| --- | ---: | ---: | ---: | ---: |
+| data file | 31 | 83 | 31 | 31 |
+| delete file | 0 | 52 | 52 | **0** |
+| position delete record | 0 | 29,730 | 29,730 | **0** |
+| record 합계 | 27,785,942 | 27,815,672 | 27,785,942 | 27,785,942 |
+
+재처리 테스트 잔재가 모두 정리돼 MOR 전환 직전 상태로 돌아왔다. 이제부터의 일별 누적이
+기본 옵션 관측의 깨끗한 기준선이다.
+
+### 이후 옵션 정책
+
+data file은 **기본 옵션을 유지한다.** 실측에서 목표 크기 미달이 선정 조건으로 작동해
+파티션당 3개가 전부 재작성됐다. `min-input-files` 조정이 필요하지 않다.
+
+position delete는 기본 옵션(`min-input-files=5`)으로는 dangling delete가 정리되지 않는다.
+정기 실행에서 delete file이 누적되는 것이 관측되면 `delete_rewrite_options=min-input-files=2`를
+검토한다. 상시 적용 여부는 일별 누적 속도를 본 뒤 정한다.
+
+옵션은 한 번에 하나씩만 바꾼다. `delete-file-threshold=1`의 상시 적용은 MOR의 쓰기 절감
+효과를 잃으므로 쓰지 않는다. `docker exec` 직접 실행은 `spark_pool`을 우회해 증분과 겹칠 수
+있으므로 쓰지 않는다.

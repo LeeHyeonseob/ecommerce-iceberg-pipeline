@@ -61,6 +61,10 @@ MERGE 자체는 매칭 행이 없어도 commit되므로 snapshot 1개는 계속 
 
 빈 snapshot은 `expire_snapshots`가 보존 기간 이후 정리한다. 기존에 쌓인 파일은 compaction 대상이며, compaction은 이미 만들어진 파일을 정리할 뿐 불필요한 UPDATE의 원인을 없애지 못하므로 변경 감지를 먼저 적용한 이 순서가 맞다.
 
+### 잔재 정리 (2026-09-13)
+
+이 기록의 data file 83개·delete file 52개는 2026-09-13 compaction으로 모두 정리했다. data file은 31개(파티션당 1개)로, delete file은 0개로 돌아갔고 record 합계도 재처리 전 27,785,942와 일치한다. 실측 수치는 [runbook](../operations/runbook.md)에 있다.
+
 ## 에이전트 지침
 
 Silver MERGE를 수정할 때 무조건적인 matched UPDATE를 다시 도입하지 않는다. 재처리 검증에서는 중복과 KPI뿐 아니라 snapshot 및 data/delete file 변화도 확인한다.

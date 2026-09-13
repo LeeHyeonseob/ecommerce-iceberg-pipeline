@@ -35,7 +35,7 @@ Silver는 증분 MERGE로 기존 행을 갱신하고, 특히 `silver_funnel`은 
 
 Silver의 delete 파일 수·크기와 Athena 조회 시간을 관측한다. 읽기 비용이 과도하면 compaction 임계값을 조정하거나 COW 복귀를 검토한다.
 
-2026-09-13 `silver_funnel` 첫 compaction 실측: 기본 옵션으로 data file 78개가 재작성돼 83개에서 31개(파티션당 1개)로 줄었고 796,814,217 bytes를 55.7초에 처리했다. 사전 예측은 `min-input-files=5` 때문에 0건이었으나 목표 크기 미달이 선정 조건으로 작동했다. 따라서 data file 쪽은 옵션 조정 없이 기본값으로 운영한다. 다만 `rewrite_position_delete_files`가 0건을 반환해 dangling delete 52개가 메타데이터에 남았다. 상세는 [runbook](../operations/runbook.md)에 기록했다. 30일 이전 상태로 time travel이나 rollback이 필요하면 snapshot 보존 기간을 늘린다. 원본 기반 백필 가능 범위는 snapshot이 아니라 Bronze 보존 기간에 달려 있다.
+2026-09-13 `silver_funnel` 첫 compaction 실측: 기본 옵션으로 data file 78개가 재작성돼 83개에서 31개(파티션당 1개)로 줄었고 796,814,217 bytes를 55.7초에 처리했다. 사전 예측은 `min-input-files=5` 때문에 0건이었으나 목표 크기 미달이 선정 조건으로 작동했다. 따라서 data file 쪽은 옵션 조정 없이 기본값으로 운영한다. `rewrite_position_delete_files`는 기본 옵션에서 0건을 반환해, `min-input-files=2`로 2차 실행해 dangling delete 52개(148,832 bytes)를 제거했다. 재처리 테스트 잔재가 모두 정리돼 delete file 0개인 기준선을 확보했다. 상세는 [runbook](../operations/runbook.md)에 기록했다. 30일 이전 상태로 time travel이나 rollback이 필요하면 snapshot 보존 기간을 늘린다. 원본 기반 백필 가능 범위는 snapshot이 아니라 Bronze 보존 기간에 달려 있다.
 
 ## 구현 근거
 
