@@ -55,41 +55,55 @@ cleanup이 지난 뒤에는 그 이전 상태로 돌아갈 수 없다. 재작성
   종료 코드 1로 끝난다. 실패한 테이블만 확인해 재실행한다.
 - 삭제 단계 실패 시에는 재시도 전에 스냅샷·metadata 상태를 먼저 확인한다.
 
-### 첫 실측 (기본 옵션)
+### 첫 실측 (기본 옵션) — 2026-09-13 완료
 
-`iceberg_compaction`을 `silver_funnel`만 대상으로, **옵션 없이** 수동 트리거한다.
+`iceberg_compaction`을 `silver_funnel`만 대상으로 옵션 없이 수동 트리거했다.
+DAG가 `health_before → rewrite → health_after` 순서로 돌므로 전후 상태가 같은 DAG run의
+`health_before`와 `health_after` task 로그에 남는다.
 
-```text
-tables                  glue.ecommerce_lakehouse.silver_funnel
-rewrite_options         (비움)
-delete_rewrite_options  (비움)
-```
+procedure 반환값:
 
-DAG가 `health_before → rewrite → health_after` 순서로 돌므로 전후 상태가 같은 DAG run의 `health_before`와 `health_after` task 로그에 남는다.
-기록할 것은 procedure 반환값(`rewritten_data_files_count`, `added_data_files_count`,
-`rewritten_bytes_count`, `rewritten_delete_files_count`), `duration_sec`, 전후 파티션별 파일 수다.
+| 단계 | 결과 | 소요 |
+| --- | --- | ---: |
+| `rewrite_data_files` | 78개 재작성 → 26개 생성, 796,814,217 bytes, 실패 0 | 55.7초 |
+| `rewrite_position_delete_files` | 0건 | 0.4초 |
 
-반환값이 0이어도 고장이 아니다. 기본 임계값(`min-input-files=5`, `min-file-size`=target의 75%,
-그룹 총량 > target) 안에 있다는 뜻이다. 0이 나온 뒤에 파티션별 분포를 보고 옵션 조정을 검토한다.
+파일 상태 전후:
+
+| 지표 | 전 | 후 |
+| --- | ---: | ---: |
+| data file 수 | 83 | 31 |
+| 복수 파일 파티션 | 26 | 0 |
+| 파티션 최대 파일 수 | 3 | 1 |
+| 평균 data file 크기 | 10.75MB | 28.73MB |
+| data file record 합계 | 27,815,672 | 27,785,942 |
+
+**기본 옵션으로 재작성이 일어났다.** 사전 예측은 `min-input-files=5` 때문에 0건이었으나
+실제로는 파티션당 파일 3개가 전부 대상이 됐다. 파일이 목표 크기(128MB)에 크게 못 미치는
+것이 선정 조건으로 작동한 것으로 보인다. 따라서 잔재 정리를 위한 data file 옵션 조정은
+필요하지 않았다.
+
+record 합계가 29,730건 줄었는데 이는 position delete 레코드 수와 정확히 같고, 결과값
+27,785,942는 MOR 전환 전 원래 행 수와 일치한다. 재작성이 delete를 실제로 적용했다는 증거다.
+파티션을 넘어 병합하지 않으므로 평균 크기는 목표 128MB가 아니라 파티션당 데이터량인
+28.73MB가 됐다. 이것이 정상이다.
+
+**남은 문제**: 새 스냅샷의 `total-delete-files`가 여전히 52, `total-position-deletes`가
+29,730이다. data file 재작성이 delete를 적용하면서 옛 delete file이 dangling으로 남았는데,
+`rewrite_position_delete_files`가 기본 옵션에서 0건을 반환해 정리되지 않았다.
+읽기에는 영향이 없을 것으로 보이나(새 data file은 sequence number가 높아 옛 delete가
+적용되지 않는다) 메타데이터에는 남아 있고 Superset의 delete 지표에도 52로 표시된다.
 
 ### 옵션 조정 (실측 이후에만)
 
-현재 `silver_funnel`의 data file 83개·position delete 52개는 정상 운영 결과가 아니라 동일 배치
-2회 재처리 테스트의 잔재다(docs/failures/003). 기본 옵션 실측에서 재작성이 0건이고 파티션별
-파일 수가 2~4개에 머무는 것이 확인되면 아래 순서로 조정한다. **한 번에 하나씩만 바꾼다.**
+첫 실측 결과 data file 쪽은 기본 옵션으로 해결됐다. 남은 것은 dangling delete file 52개다.
+아래 조건이 실측으로 충족됐으므로 delete 쪽만 조정한다. **한 번에 하나씩만 바꾼다.**
 
-1. `rewrite_options=min-input-files=2`만 적용해 실행한다. `delete_rewrite_options`는 비워 둔다.
-2. data file이 파티션당 1개로 줄었는지, 재작성 바이트와 소요 시간이 얼마인지 확인한다.
-3. 그 뒤에도 position delete file이 남아 있고 기본 옵션의 delete 재작성이 0건이었다면,
-   그때 `delete_rewrite_options=min-input-files=2`를 적용해 다시 실행한다.
-
-2단계를 건너뛰고 두 옵션을 동시에 바꾸면 어느 쪽이 무엇을 바꿨는지 귀속할 수 없다.
-`rewrite_data_files`는 delete를 적용해 새 data file을 만들면서 옛 delete를 dangling으로 만들므로,
-1단계만으로 delete file 상태가 달라질 수 있다. 그 변화를 먼저 본 뒤 3단계를 판단한다.
+1. `delete_rewrite_options=min-input-files=2`를 적용해 `silver_funnel`을 다시 실행한다.
+   `rewrite_options`는 비워 둔다. data file은 이미 파티션당 1개다.
+2. `rewritten_delete_files_count`와 스냅샷 summary의 `total-delete-files`를 확인한다.
+3. 그래도 남으면 파티션별 delete 분포를 보고 다음 옵션을 판단한다.
 
 이는 잔재 정리용 일회성 설정이며 상시 정책이 아니다. `delete-file-threshold=1`의 상시 적용은
-MOR의 쓰기 절감 효과를 잃으므로 쓰지 않는다.
-
-파티션을 넘어 병합하지 않으므로 기대 결과는 평균 크기가 128MB에 가까워지는 것이 아니라
-26개 다중 파일 파티션이 각 1개로 줄어 총 31개 부근이 되는 것이다. `docker exec` 직접 실행은
-`spark_pool`을 우회해 증분과 겹칠 수 있으므로 쓰지 않는다.
+MOR의 쓰기 절감 효과를 잃으므로 쓰지 않는다. `docker exec` 직접 실행은 `spark_pool`을
+우회해 증분과 겹칠 수 있으므로 쓰지 않는다.
