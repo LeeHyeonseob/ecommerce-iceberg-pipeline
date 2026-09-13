@@ -44,6 +44,10 @@ cleanup이 지난 뒤에는 그 이전 상태로 돌아갈 수 없다. 재작성
   다시 계산돼 범위가 넓어지고 로그만으로 범위를 재현할 수 없다.
 - 증분과 재작성의 순서는 cron 시간차로 보장하지 않는다. Airflow 풀은 태스크 단위로 적용되므로
   1슬롯이 DAG 전체를 연속 구간으로 예약하지 않는다. 그래서 `TriggerDagRunOperator`로 연결한다.
+- 주간 조건은 `dag_run.run_after`의 요일로 판단한다(`COMPACTION_WEEKDAY`, 기본 토요일).
+  `data_interval_end`는 수동 트리거에서 정의되지 않아 쓰지 않는다. 스케줄 실행에서
+  `run_after`는 트리거 시각이고 `logical_date`는 그보다 하루 앞이므로, 토요일 00:00 UTC에
+  뜨는 실행이 컴팩션을 트리거한다.
 - 주기는 확정값이 아니라 관측 후 조정할 초기값이다. 재작성 실행 시간과 실제 재작성량,
   파티션별 파일 수, Athena 조회 시간을 보고 정한다.
 
@@ -116,6 +120,28 @@ data file은 이미 파티션당 1개라 0건으로 끝났다 — 무작업일 �
 
 재처리 테스트 잔재가 모두 정리돼 MOR 전환 직전 상태로 돌아왔다. 이제부터의 일별 누적이
 기본 옵션 관측의 깨끗한 기준선이다.
+
+### 증분 스케줄 가동과 trigger 경로 검증 — 2026-09-13 완료
+
+`ecommerce_incremental`을 unpause하자 `run_after=2026-09-13 00:00`(logical_date 2026-09-12)
+실행이 즉시 떨어져 35초에 성공했다. `CronTriggerTimetable`은 가장 최근 실행 가능 시점을
+바로 스케줄한다.
+
+| 태스크 | 상태 | 소요 |
+| --- | --- | ---: |
+| `silver_events` | success | 12.5초 |
+| `silver_funnel` | success (skip 분기) | 0.1초 |
+| `gold` | success (skip 분기) | 0.1초 |
+| `health_check` | success | 17.9초 |
+| `is_compaction_day` | success | 0.1초 |
+| `trigger_compaction` | **skipped** | — |
+
+Bronze에 해당 수집 시각 구간의 데이터가 없어 `{"batch_output_path": null, "event_count": 0,
+"event_dates": []}`로 끝났고, Funnel·Gold가 설계대로 건너뛰었다. `trigger_compaction`이
+skipped인 것도 정확하다 — `run_after`가 일요일이라 토요일 조건에 걸리지 않는다.
+
+컴팩션이 실제로 트리거되는지는 토요일 실행분에서 확인해야 한다. 일별 파일 누적 관측도
+Bronze에 새 데이터가 들어와야 시작된다.
 
 ### cleanup 경로 검증 — 2026-09-13 완료
 
