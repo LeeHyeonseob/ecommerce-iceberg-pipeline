@@ -3,7 +3,7 @@ from datetime import timedelta
 
 import pendulum
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.sdk import dag, task
+from airflow.sdk import CronTriggerTimetable, dag, task
 from dag_utils import PIPELINE_DIR, parse_last_json
 
 HEALTH_SCRIPT = f"{PIPELINE_DIR}/health_check.py"
@@ -14,7 +14,11 @@ COMPACTION_WEEKDAY = 5
 
 @dag(
     dag_id="ecommerce_incremental",
-    schedule="@daily",
+    # Airflow 3의 "@daily"는 CronTriggerTimetable(interval=0)로 매핑돼
+    # data_interval_start == data_interval_end가 된다. 그러면 아래 silver_events의
+    # [data_interval_start - 2h, data_interval_end) 창이 하루가 아니라 2시간이 된다.
+    # interval을 명시해 data_interval_start = run_after - 1일로 되돌린다.
+    schedule=CronTriggerTimetable("0 0 * * *", timezone="UTC", interval=timedelta(days=1)),
     start_date=pendulum.datetime(2026, 8, 24, tz="UTC"),
     catchup=False,
     max_active_runs=1,
