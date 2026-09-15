@@ -15,6 +15,10 @@ ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 RUN pip3 install apache-flink==1.19.3
 
+# Flink 런타임과 같은 버전의 Prometheus reporter
+RUN wget -q -P /opt/flink/lib/ \
+    https://repo1.maven.org/maven2/org/apache/flink/flink-metrics-prometheus/1.19.3/flink-metrics-prometheus-1.19.3.jar
+
 # Kafka 커넥터
 RUN wget -q -P /opt/flink/lib/ \
     https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.2.0-1.19/flink-sql-connector-kafka-3.2.0-1.19.jar

@@ -146,6 +146,8 @@ Gold는 일별 집계라 파일이 언제나 128MB에 한참 못 미친다. 크�
 
 Bronze는 plain Parquet이므로 Iceberg 메타테이블 기반 점검 대상이 아니다. Bronze 파일 크기와 도착 지연은 `verify_raw_zones.py`로 별도 진단한다.
 
+실시간 시스템 상태는 Prometheus가 15초마다 수집한다. Flink reporter에서 처리량·backpressure·checkpoint를, Kafka exporter에서 consumer group·partition lag를, Kafka JVM의 JMX Exporter에서 브로커 내부 지표를 가져온다. 이 지표는 즉시 장애를 찾기 위한 것이고, 위 헬스 쿼리는 배치 커밋 후 데이터 상태를 검증하기 위한 것이므로 역할이 다르다.
+
 ## 8. Superset 대시보드
 
 - **조회 엔진**: Athena
@@ -175,6 +177,9 @@ set -a; source .env; set +a
 # Kafka + Flink
 docker compose -f infra/docker-compose.yml up -d --build
 
+# Prometheus + Kafka consumer-lag exporter + Grafana (Kafka/Flink 기동 후)
+docker compose -f infra/docker-compose.monitoring.yml up -d
+
 # Airflow + spark-runner
 docker compose -f infra/docker-compose.airflow.yml up -d --build
 
@@ -183,6 +188,8 @@ docker compose -f infra/docker-compose.superset.yml up -d --build
 ```
 
 - Flink UI: `http://localhost:8081`
+- Prometheus UI: `http://localhost:9090`
+- Grafana 운영 대시보드: `http://localhost:3000` (로컬 anonymous viewer)
 - Airflow UI: `http://localhost:8080`
 - Superset UI: `http://localhost:8088`
 

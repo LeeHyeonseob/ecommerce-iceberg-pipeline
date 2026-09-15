@@ -1,0 +1,50 @@
+lowercaseOutputName: true
+
+includeObjectNames:
+  - "kafka.server:type=ReplicaManager,name=UnderReplicatedPartitions"
+  - "kafka.server:type=ReplicaManager,name=IsrShrinksPerSec"
+  - "kafka.server:type=ReplicaManager,name=IsrExpandsPerSec"
+  - "kafka.controller:type=KafkaController,name=OfflinePartitionsCount"
+  - "kafka.controller:type=KafkaController,name=ActiveControllerCount"
+  - "kafka.log:type=LogManager,name=OfflineLogDirectoryCount"
+  - "kafka.server:type=KafkaRequestHandlerPool,name=BrokerRequestHandlerAvgIdlePercent"
+  - "kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,*"
+  - "kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,*"
+  - "kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,*"
+  - "kafka.network:type=RequestMetrics,name=TotalTimeMs,request=Produce"
+  - "kafka.network:type=RequestMetrics,name=TotalTimeMs,request=FetchConsumer"
+
+rules:
+  - pattern: 'kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value'
+    name: kafka_server_replicamanager_underreplicatedpartitions
+    type: GAUGE
+  - pattern: 'kafka.controller<type=KafkaController, name=(OfflinePartitionsCount|ActiveControllerCount)><>Value'
+    name: kafka_controller_kafkacontroller_$1
+    type: GAUGE
+  - pattern: 'kafka.log<type=LogManager, name=OfflineLogDirectoryCount><>Value'
+    name: kafka_log_logmanager_offlinelogdirectorycount
+    type: GAUGE
+
+  - pattern: 'kafka.server<type=KafkaRequestHandlerPool, name=BrokerRequestHandlerAvgIdlePercent><>MeanRate'
+    name: kafka_server_kafkarequesthandlerpool_brokerrequesthandleravgidle_percent
+    type: GAUGE
+  - pattern: 'kafka.server<type=ReplicaManager, name=(IsrShrinks|IsrExpands)PerSec><>Count'
+    name: kafka_server_replicamanager_$1_total
+    type: COUNTER
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(MessagesIn|BytesIn|BytesOut)PerSec, topic=(.+)><>Count'
+    name: kafka_server_brokertopicmetrics_$1_total
+    type: COUNTER
+    labels:
+      topic: "$2"
+  - pattern: 'kafka.server<type=BrokerTopicMetrics, name=(MessagesIn|BytesIn|BytesOut)PerSec><>Count'
+    name: kafka_server_brokertopicmetrics_$1_total
+    type: COUNTER
+    labels:
+      topic: all
+
+  - pattern: 'kafka.network<type=RequestMetrics, name=TotalTimeMs, request=(Produce|FetchConsumer)><>(\d+)thPercentile'
+    name: kafka_network_requestmetrics_totaltimems
+    type: GAUGE
+    labels:
+      request: "$1"
+      quantile: "0.$2"

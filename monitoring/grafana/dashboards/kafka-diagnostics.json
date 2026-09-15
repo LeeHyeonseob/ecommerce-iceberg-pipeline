@@ -1,0 +1,101 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "토픽별 메시지 유입 속도. __consumer_offsets는 Kafka 내부 토픽이다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2}, "unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "rate(kafka_server_brokertopicmetrics_messagesin_total{topic!=\"all\"}[1m])", "legendFormat": "{{topic}}", "refId": "A"}],
+      "title": "Kafka 메시지 처리량 (msg/sec, 토픽별)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "브로커 전체 바이트 유입/유출 속도(topic=all 집계).",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2}, "unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "rate(kafka_server_brokertopicmetrics_bytesin_total{topic=\"all\"}[1m])", "legendFormat": "bytes in", "refId": "A"},
+        {"expr": "rate(kafka_server_brokertopicmetrics_bytesout_total{topic=\"all\"}[1m])", "legendFormat": "bytes out", "refId": "B"}
+      ],
+      "title": "Kafka 바이트 처리량",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Produce/Fetch 요청의 브로커 내 처리 시간(p50/p75/p95/p99). FetchConsumer는 fetch.max.wait.ms(기본 500ms) long-poll 때문에 새 데이터가 없으면 p50이 500ms 근처로 나오는 것이 정상이다 - 실제 지연이 아니라 대기 설계다. Produce의 상승만 문제로 본다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}, "unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "kafka_network_requestmetrics_totaltimems", "legendFormat": "{{request}} p{{quantile}}", "refId": "A"}],
+      "title": "Produce/Fetch 요청 지연",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "복제본 증감 속도. 현재 단일 브로커·복제계수 1이라 구조적으로 항상 0이다. 브로커를 늘린 뒤에만 의미가 생긴다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}, "unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "rate(kafka_server_replicamanager_isrshrinks_total[5m])", "legendFormat": "shrink", "refId": "A"},
+        {"expr": "rate(kafka_server_replicamanager_isrexpands_total[5m])", "legendFormat": "expand", "refId": "B"}
+      ],
+      "title": "Kafka ISR 증감 (단일 브로커에서는 항상 0)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Kafka 브로커, Flink jobmanager·taskmanager의 heap 사용량. jmx_exporter·Flink Prometheus reporter가 기본으로 내보내는 값이라 별도 계측 추가가 필요 없었다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}, "unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "jvm_memory_used_bytes{job=\"kafka-broker\", area=\"heap\"}", "legendFormat": "kafka used", "refId": "A"},
+        {"expr": "flink_jobmanager_Status_JVM_Memory_Heap_Used", "legendFormat": "jobmanager used", "refId": "B"},
+        {"expr": "flink_jobmanager_Status_JVM_Memory_Heap_Max", "legendFormat": "jobmanager max", "refId": "C"},
+        {"expr": "avg(flink_taskmanager_Status_JVM_Memory_Heap_Used)", "legendFormat": "taskmanager used", "refId": "D"},
+        {"expr": "avg(flink_taskmanager_Status_JVM_Memory_Heap_Max)", "legendFormat": "taskmanager max", "refId": "E"}
+      ],
+      "title": "JVM Heap 사용량",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "GC가 CPU 시간을 차지한 비율(초/초). Flink는 All_TimeMsPerSecond를 그대로 쓰고(이미 비율), Kafka는 누적 초 카운터를 rate로 변환한다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}, "unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "rate(jvm_gc_collection_seconds_sum{job=\"kafka-broker\"}[1m])", "legendFormat": "kafka {{gc}}", "refId": "A"},
+        {"expr": "flink_jobmanager_Status_JVM_GarbageCollector_All_TimeMsPerSecond / 1000", "legendFormat": "jobmanager", "refId": "B"},
+        {"expr": "avg(flink_taskmanager_Status_JVM_GarbageCollector_All_TimeMsPerSecond) / 1000", "legendFormat": "taskmanager avg", "refId": "C"}
+      ],
+      "title": "GC 시간 비율",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 42,
+  "tags": ["ecommerce", "operations", "streaming", "diagnostics"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timezone": "browser",
+  "title": "Kafka/Flink 상세 진단",
+  "uid": "ecommerce-kafka-diagnostics",
+  "version": 1
+}

@@ -66,6 +66,7 @@ credentials.json
 
 # === 로컬 실행 스크립트 ===
 *.sh
+!infra/kafka-with-jmx.sh
 
 # === 로그 ===
 *.log

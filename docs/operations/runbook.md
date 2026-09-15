@@ -177,3 +177,89 @@ position delete는 기본 옵션(`min-input-files=5`)으로는 dangling delete�
 옵션은 한 번에 하나씩만 바꾼다. `delete-file-threshold=1`의 상시 적용은 MOR의 쓰기 절감
 효과를 잃으므로 쓰지 않는다. `docker exec` 직접 실행은 `spark_pool`을 우회해 증분과 겹칠 수
 있으므로 쓰지 않는다.
+
+## Grafana·Prometheus 모니터링
+
+Kafka·Flink 실시간 지표는 `infra/docker-compose.monitoring.yml`(Prometheus, kafka-exporter,
+Grafana)과 `infra/kafka.Dockerfile`(JMX exporter를 javaagent로 얹은 Kafka 이미지)로 구성한다.
+대시보드 정의는 `monitoring/grafana/dashboards/streaming-operations.json`에 코드로 보관한다.
+
+### JMX exporter 구성 확인 — 2026-09-14 완료
+
+`kafka-broker` scrape 대상(`kafka:9404`)이 `up` 상태로 확인됐다. `infra/kafka-jmx.yml`은
+request handler 여유율, ISR 증감, under-replicated 파티션, produce/fetch 요청 지연,
+메시지·바이트 처리량을 노출한다. `kafka-jmx.yml`의 커스텀 규칙에는 없지만, JMX Exporter의
+기본 JVM 지표로 heap·GC도 함께 수집된다(아래 상세 진단 대시보드 참고).
+
+**단일 브로커·복제계수 1 환경이라 ISR·복제 관련 지표는 구조적으로 항상 0이다.** 브로커가
+하나뿐이라 복제본이 줄어들거나(shrink) 늘어날(expand) 대상 자체가 없다. 계측 자체는 무해하고
+브로커를 늘릴 때를 대비한 것이지만, 지금은 신호로 쓸 수 없다. 대시보드의 "Kafka 복제 이상
+파티션" 패널 설명에도 명시했다.
+
+### 정상 속도 부하 베이스라인 — 2026-09-14 완료
+
+정확한 임계값을 정하기엔 실측이 한 번뿐이라 부족하다고 판단해, **느슨한 sanity 임계값**(명백히
+고장난 상태만 표시)만 잡고 정밀한 warning/critical은 실제 운영 이력이 쌓인 뒤로 미뤘다.
+
+측정 방법: `2019-Dec.csv.gz`의 시간대별 분포를 스캔해 실제 피크 시간대(14~17시, 자정 대비
+약 12배)를 확인한 뒤, 12월 1일 15:00~15:31 구간만 잘라 `--speed 1`(원본 타임스탬프 간격 그대로)
+로 재생했다. 배속을 왜곡하면 lag·backpressure 같은 도착률 의존 지표가 실제와 달라지므로,
+자정처럼 트래픽이 적은 시간대에서 실시간 대기하는 대신 피크 시간대만 골라 실시간으로 재생했다.
+`kafka_producer.py`는 건드리지 않고 임시 슬라이스 파일만 만들어 썼다.
+
+| 지표 | 관측값 |
+| --- | --- |
+| 배속 정확도 | event 경과 31분19초 / wall 경과 31분42초 = 0.99배 |
+| 처리량 (view, 트래픽 대부분) | 평균 27.15/s, 최대 32/s |
+| Kafka consumer lag | 순간 최대 677, 종료 후 0 |
+| request handler 여유율 | 평균 99.99%, 최저 99.99% |
+| backpressure | 전 구간 0 |
+| checkpoint 실패 | 0건 |
+| checkpoint 소요 (정상) | 179~500ms (68회 중 67회) |
+| checkpoint 소요 (이상치) | 5,340ms 1회, 전후 정상 — 지속 아님 |
+
+이 데이터셋의 "피크"(초당 33건)는 로컬 단일 브로커 Kafka에는 사실상 부하가 아니다. lag는
+즉시 소화되고 idle%는 100%에 붙어 있다. 60배속 테스트에서 겪은 OOM은 Kafka/Flink가 아니라
+Spark 메모리 쪽 문제였다(위 Iceberg 재작성 실측 참고).
+
+체크포인트 이상치는 68회 중 1회(약 1.4%)가 정상 부하에서도 발생할 수 있다는 실증 근거다.
+순간값 기반 알림이면 이 정도 빈도로 오탐이 난다 — 알림 규칙에서 지속 조건(연속 2회 이상)을
+쓸 근거가 된다.
+
+**표본 1회로는 정밀한 임계값을 정할 수 없다.** 하루·요일별 변동, 반복 실행 시 재현성, 로컬
+Docker Desktop 환경의 호스트 노이즈, 실제 이상 상황(S3 지연·네트워크 문제)에서의 동작을 전혀
+확인하지 못했다. 아래 임계값은 전부 "명백히 고장난 상태만 표시"하는 sanity 수준이며 확정이
+아니다.
+
+### 반영한 sanity 임계값
+
+`monitoring/grafana/dashboards/streaming-operations.json` 수정.
+
+| 패널 | 이전 | 변경 후 | 근거 |
+| --- | --- | --- | --- |
+| Kafka consumer lag | yellow 1,000 / red 10,000 | yellow 10,000 / red 50,000 | 실측 정상 피크 순간값(677)의 15~70배로 벌려 정상 튐과 구분. `lastNotNull` 순간값 패널이라 지속 조건 없이 타이트하게 잡으면 오탐 |
+| checkpoint 시간 | 없음 | yellow 5,000ms / red 15,000ms (신규) | 체크포인트 주기 30초의 절반을 넘는 수준만 표시. 정상 대역(179~500ms)과 관측된 단발 이상치(5,340ms) 사이에 여유를 둠 |
+| Kafka 복제 이상 파티션 | green/red 그대로 | 값 변경 없음, 설명만 추가 | 위 참고 — 지금은 항상 0 |
+
+**그대로 둔 것**: request handler 여유율(green≥50%/yellow 30~50%/red<30% — 일반적인 Kafka
+운영 관례값과 일치, 실측 99.99%에서 한참 여유), 체크포인트 실패(`increase(...[5m])`로 이미
+5분 누적이라 순간값 문제 없음), backpressure(타임시리즈 라인 색칠이라 상대적으로 안전).
+
+### 상세 진단 대시보드 — 2026-09-14 완료
+
+메인 화면(`streaming-operations.json`)과 분리한 `monitoring/grafana/dashboards/kafka-diagnostics.json`
+(`Kafka/Flink 상세 진단`)을 추가했다. 토픽별 메시지 처리량, 브로커 바이트 in/out, Produce/Fetch
+요청 지연, ISR 증감, JVM heap 사용량, GC 시간 비율 6개 패널.
+
+**JVM heap·GC는 추가 계측 없이 이미 수집되고 있었다.** jmx_exporter javaagent가 커스텀
+`kafka-jmx.yml` 설정과 무관하게 기본으로 `jvm_memory_used_bytes`, `jvm_gc_collection_seconds_*`를
+내보내고(`DefaultExports`), Flink Prometheus reporter도 `flink_*_Status_JVM_Memory_Heap_*`,
+`flink_*_Status_JVM_GarbageCollector_*`를 기본 제공한다. 이미지 재빌드나 설정 변경 없이
+대시보드 파일 추가만으로 끝났다.
+
+Produce/Fetch 요청 지연 패널에는 `FetchConsumer`의 p50이 약 500ms 근처로 나오는 게 정상이라는
+설명을 달았다 — `fetch.max.wait.ms`(기본 500ms) long-poll 설계 때문이지 실제 지연이 아니다.
+ISR 증감 패널에는 단일 브로커·복제계수 1이라 구조적으로 항상 0이라는 설명을 재확인해 뒀다.
+
+전체 6개 패널 쿼리를 Prometheus에 직접 질의해 실제 시리즈가 반환되는지 확인했다(1~12개 시리즈,
+빈 응답 없음).
