@@ -1,0 +1,153 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: ecommerce-streaming-sanity
+    folder: Ecommerce
+    interval: 1m
+    rules:
+      - uid: sanity-kafka-lag
+        title: "Kafka consumer lag 지속"
+        # 2026-09-14 정상 속도 피크 재생 실측: 순간 최대 677, 즉시 0으로 소화됨.
+        # 그 수십 배(10,000)를 5분 이상 지속할 때만 - 소비가 멈춘 상태로 본다.
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: sum(kafka_consumergroup_lag_sum)
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [10000]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Kafka consumer lag이 10,000을 5분 이상 초과했다. 소비가 멈췄을 가능성이 있다."
+
+      - uid: sanity-flink-jobs
+        title: "RUNNING Flink 잡 부족"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 120, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: count(flink_jobmanager_job_uptime)
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: {from: 120, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: lt, params: [3]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "RUNNING Flink 잡이 3개 미만이다(view/cart/purchase). Bronze 수집이 멈췄을 수 있다."
+
+      - uid: sanity-checkpoint-failed
+        title: "Flink checkpoint 실패"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: sum(increase(flink_jobmanager_job_numberOfFailedCheckpoints[5m]))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "최근 5분 내 checkpoint 실패가 발생했다."
+
+      - uid: sanity-backpressure
+        title: "Flink backpressure 지속"
+        # 2026-09-14 정상 속도 피크 재생 실측: 전 구간 0. 절반(500/1000ms) 이상을
+        # 5분 이상 지속할 때만 - 단발 튐과 구분한다.
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: max(flink_taskmanager_job_task_backPressuredTimeMsPerSecond)
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: {from: 300, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [500]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Flink backpressure가 50% 이상을 5분 이상 지속했다."
+
+      - uid: sanity-kafka-replication
+        title: "Kafka 복제 이상 파티션"
+        # 현재 단일 브로커·복제계수 1이라 구조적으로 항상 0이다. 브로커를 늘리기 전까지는
+        # 이 규칙이 실제로 발동할 일이 없다 - 다중 브로커 전환 시를 대비해 미리 정의해 둔다.
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: {from: 60, to: 0}
+            datasourceUid: prometheus
+            model:
+              expr: sum(kafka_server_replicamanager_underreplicatedpartitions)
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: {from: 60, to: 0}
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: A
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+                  reducer: {type: last}
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Under-replicated 파티션이 발생했다. 브로커 또는 복제 상태를 확인한다."

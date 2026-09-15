@@ -1,0 +1,13 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: slack-operations
+    receivers:
+      - uid: slack_operations
+        type: slack
+        disableResolveMessage: false
+        settings:
+          url: $SLACK_WEBHOOK_URL
+          title: '{{ template "ecommerce.slack.title" . }}'
+          text: '{{ template "ecommerce.slack.text" . }}'

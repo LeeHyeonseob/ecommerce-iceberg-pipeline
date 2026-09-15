@@ -263,3 +263,60 @@ ISR 증감 패널에는 단일 브로커·복제계수 1이라 구조적으로 �
 
 전체 6개 패널 쿼리를 Prometheus에 직접 질의해 실제 시리즈가 반환되는지 확인했다(1~12개 시리즈,
 빈 응답 없음).
+
+### 알림 규칙 — 2026-09-14 완료
+
+`monitoring/grafana/provisioning/alerting/sanity-rules.yml`에 Grafana Alerting 규칙 5개를
+코드로 프로비저닝했다. 값은 위 sanity 임계값과 맞췄다.
+
+| 규칙 | 조건 | 지속(`for`) |
+| --- | --- | ---: |
+| Kafka consumer lag 지속 | `sum(kafka_consumergroup_lag_sum) > 10000` | 5분 |
+| RUNNING Flink 잡 부족 | `count(flink_jobmanager_job_uptime) < 3` | 2분 |
+| Flink checkpoint 실패 | `increase(...numberOfFailedCheckpoints[5m]) > 0` | 1분 |
+| Flink backpressure 지속 | `max(...backPressuredTimeMsPerSecond) > 500` | 5분 |
+| Kafka 복제 이상 파티션 | `sum(...underreplicatedpartitions) > 0` | 1분 |
+
+마지막 규칙은 단일 브로커·복제계수 1에서는 구조적으로 발동 불가하다는 주석을 규칙 파일에
+남겼다 — 브로커를 늘렸을 때를 대비한 정의다.
+
+**알림 규칙은 대시보드와 달리 파일 변경이 핫리로드되지 않는다.** `docker restart grafana`가
+있어야 새 프로비저닝이 반영된다(컨테이너 재생성까지는 필요 없다).
+
+**실제 장애를 일으켜 생명주기 전체를 검증했다.** `raw_zone_cart` Flink 잡을 강제로 취소해
+"RUNNING Flink 잡 부족" 규칙으로 확인했다.
+
+```
+잡 취소 → count(flink_jobmanager_job_uptime) = 2로 하락
+inactive → pending (2분 대기 시작)
+2분 경과 → pending → firing   (for: 2m대로 정확히 동작)
+잡 재제출 → 메트릭 3으로 즉시 복구
+firing → inactive             (추가 지연 없이 즉시 해제)
+```
+
+컨슈머 그룹은 `group-offsets` 방식이라 재제출 후 끊김 없이 이어졌고 lag는 0으로 확인됐다.
+
+### Slack 연동 — 2026-09-14 완료
+
+`monitoring/grafana/provisioning/alerting/`에 `contact-points.yml`(Slack Contact Point),
+`notification-policies.yml`(기본 정책이 전 알림을 `slack-operations`로 라우팅),
+`templates.yml`(`ecommerce.slack.title`/`.text`) 3개 파일로 프로비저닝했다.
+
+secret은 저장소에 두지 않는다. `.env`의 `SLACK_WEBHOOK_URL`을
+`infra/docker-compose.monitoring.yml`이 `SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:?SLACK_WEBHOOK_URL
+must be set}`로 Grafana 컨테이너에 주입하고, `contact-points.yml`은 `$SLACK_WEBHOOK_URL` 치환
+문법으로 참조한다. Grafana Contact Point API로 조회하면 `"url": "[REDACTED]"`로 나와 실제
+치환·저장이 확인된다 — 값 자체는 API 응답에도 노출되지 않는다.
+
+**실제 Slack 채널에서 전달을 확인했다(2026-09-14 23:22~23:27 KST).** 위 "RUNNING Flink 잡
+부족" 재현 과정에서 FIRING 메시지가 잡 취소 후 5분 뒤 도착했고(그룹핑 `group_wait: 30s` 포함),
+잡 복구 후 RESOLVED 메시지가 도착했다. 규칙명·심각도(critical)·`summary` 문구·Grafana 버전이
+템플릿대로 렌더링됐다.
+
+### 남은 항목
+
+- JVM heap·GC 관측은 됐으나 해당 패널에 sanity 임계값(색상 표시)은 아직 없음
+- Slack 메시지 문구가 딱딱함 — `templates.yml` 문구만 다듬을 예정, 값·라우팅 구조는 유지
+- Airflow DAG 실패·재시도 초과 알림, Bronze freshness 임계값 알림은 아직 없음 (Grafana/Kafka/Flink
+  경로만 완료)
+- 정밀 임계값은 실제 운영 이력이 쌓인 뒤 재검토

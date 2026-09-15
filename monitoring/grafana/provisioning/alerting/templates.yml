@@ -1,0 +1,14 @@
+apiVersion: 1
+
+templates:
+  - orgId: 1
+    name: ecommerce_slack
+    template: |
+      {{ define "ecommerce.slack.title" }}[{{ .Status | toUpper }}] Ecommerce pipeline{{ end }}
+      {{ define "ecommerce.slack.text" }}
+      {{ range .Alerts }}
+      *{{ .Labels.alertname }}* ({{ .Labels.severity }})
+      {{ .Annotations.summary }}
+      {{ if .DashboardURL }}<{{ .DashboardURL }}|Grafana dashboard>{{ end }}
+      {{ end }}
+      {{ end }}
