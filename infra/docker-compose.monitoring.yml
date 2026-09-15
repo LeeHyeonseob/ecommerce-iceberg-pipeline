@@ -50,7 +50,7 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - streaming
-    mem_limit: 384m
+    mem_limit: 768m
     restart: unless-stopped
 
 networks:

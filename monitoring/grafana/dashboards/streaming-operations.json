@@ -109,6 +109,47 @@
       "targets": [{"expr": "max by (job_name) (flink_taskmanager_job_task_backPressuredTimeMsPerSecond)", "legendFormat": "{{job_name}}", "refId": "A"}],
       "title": "Flink backpressure (ms/sec)",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 21},
+      "id": 11,
+      "panels": [],
+      "title": "실시간 잠정 비즈니스 KPI — 확정 수치는 Superset에서 확인",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Flink raw_zone job(topic)별 통과 레코드 수 - event_type 값을 검사하는 게 아니라 어느 topic(view/cart/purchase)에서 왔는지로 집계한다. 잠정치이며 재처리·Silver 중복 제거·30일 cross-session 전환 창이 반영되지 않는다 - 확정 KPI는 Superset에서 확인한다.",
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2}, "unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+      "id": 12,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (job_name) (rate(flink_taskmanager_job_task_operator_business_event_count[1m]))", "legendFormat": "{{job_name}}", "refId": "A"}],
+      "title": "토픽별 실시간 유입량 (잠정치)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "잠정치. Flink job 재시작 시 0부터 다시 계산된다 - 확정 purchase 이벤트 수는 Superset에서 확인한다.",
+      "fieldConfig": {"defaults": {"decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 22},
+      "id": 13,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(increase(flink_taskmanager_job_task_operator_business_event_count{job_name=\"raw_zone_purchase\"}[5m]))", "refId": "A"}],
+      "title": "최근 5분 purchase 이벤트 수 (잠정치)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "잠정치이며 통화 단위는 원본 데이터에 없어 추정하지 않는다(숫자만 표시). Flink job 재시작 시 0부터 다시 계산된다 - 확정 GMV는 Superset에서 확인한다.",
+      "fieldConfig": {"defaults": {"decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 22},
+      "id": 14,
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "sum(increase(flink_taskmanager_job_task_operator_business_purchase_amount_x100{job_name=\"raw_zone_purchase\"}[5m])) / 100", "refId": "A"}],
+      "title": "최근 5분 purchase 금액 합계 (잠정치, 통화 미상)",
+      "type": "stat"
     }
   ],
   "refresh": "15s",
@@ -119,5 +160,5 @@
   "timezone": "browser",
   "title": "Ecommerce Streaming Operations",
   "uid": "ecommerce-streaming-ops",
-  "version": 2
+  "version": 5
 }

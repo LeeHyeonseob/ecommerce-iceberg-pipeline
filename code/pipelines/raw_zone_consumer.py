@@ -1,7 +1,47 @@
 import argparse
+from decimal import Decimal, InvalidOperation
 
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import StreamTableEnvironment
+from pyflink.table import DataTypes, StreamTableEnvironment
+from pyflink.table.udf import ScalarFunction, udf
+
+
+class BusinessMetricFunction(ScalarFunction):
+    """이벤트를 통과시키며 저카디널리티 실시간 지표만 부수효과로 남긴다.
+
+    topic 1개당 job 1개(view/cart/purchase)라 event_type을 label로 쓰지
+    않아도 job_name으로 이미 구분된다. purchase 금액 누적은 event_type을 직접
+    검사해서 판단한다(topic 소속만으로 판단하면 잘못 유입된 이벤트까지 셀 수 있음).
+    원본에 통화가 없어 금액 단위를 가정하지 않는다 - PyFlink Counter는 정수만
+    받으므로 100배 정수로 스케일링하고("cents"처럼 통화를 암시하는 이름은 쓰지 않음),
+    Decimal로 변환해 float 반올림 오차를 피한다.
+    """
+
+    PURCHASE_EVENT_TYPE = "purchase"
+
+    def __init__(self, is_purchase_topic: bool):
+        self.is_purchase_topic = is_purchase_topic
+
+    def open(self, function_context):
+        metrics = function_context.get_metric_group().add_group("business")
+        self.event_counter = metrics.counter("event_count")
+        if self.is_purchase_topic:
+            self.purchase_amount_x100 = metrics.counter("purchase_amount_x100")
+
+    def eval(self, event_type, price):
+        self.event_counter.inc()
+        if (
+            self.is_purchase_topic
+            and event_type == self.PURCHASE_EVENT_TYPE
+            and price is not None
+        ):
+            try:
+                amount = Decimal(price)
+                if amount.is_finite() and amount >= 0:
+                    self.purchase_amount_x100.inc(int(amount * 100))
+            except InvalidOperation:
+                pass
+        return event_type
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,11 +120,20 @@ def create_sink_table(t_env: StreamTableEnvironment, raw_path: str) -> None:
     """)
 
 
+def register_business_metric_udf(t_env: StreamTableEnvironment, zone_name: str) -> None:
+    is_purchase_topic = zone_name == "purchase"
+    t_env.create_temporary_function(
+        "record_business_metric",
+        udf(BusinessMetricFunction(is_purchase_topic), result_type=DataTypes.STRING()),
+    )
+
+
 def run_insert(t_env: StreamTableEnvironment) -> None:
     t_env.execute_sql("""
         INSERT INTO raw_zone_sink
         SELECT
-            event_time, event_type, product_id, category_id, category_code,
+            event_time, record_business_metric(event_type, price) AS event_type,
+            product_id, category_id, category_code,
             brand, price, user_id, user_session, event_id,
             kafka_partition, kafka_offset, kafka_timestamp,
             CURRENT_TIMESTAMP AS ingest_ts,
@@ -100,6 +149,7 @@ def main() -> None:
     t_env.get_config().set("pipeline.name", f"raw_zone_{zone_name}")
     create_source_table(t_env, args.topic, args.bootstrap_servers)
     create_sink_table(t_env, args.raw_path)
+    register_business_metric_udf(t_env, zone_name)
     run_insert(t_env)
 
 
