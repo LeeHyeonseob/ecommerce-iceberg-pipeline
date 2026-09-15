@@ -2,7 +2,7 @@ name: ecommerce-streaming
 
 services:
   kafka:
-    image: apache/kafka:latest
+    image: apache/kafka:4.3.1
     container_name: kafka
     ports:
       - "9092:9092"   # 호스트(로컬 producer.py 등)에서 접속
@@ -17,6 +17,8 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # 지정하지 않으면 내장 기본값 /tmp/kafka-logs에 써서 볼륨이 보존하지 못한다.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka-data:/var/lib/kafka/data
 
