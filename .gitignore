@@ -72,6 +72,12 @@ credentials.json
 *.log
 logs/
 
+# === Marp 빌드 산출물 (소스 마크다운만 버전 관리) ===
+presentation/slides.html
+presentation/slides.pdf
+presentation/architecture.html
+presentation/architecture.visual-check.*
+
 # === OS / 에디터 ===
 .DS_Store
 .vscode/

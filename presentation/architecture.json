@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "이커머스 행동 로그 Lakehouse 아키텍처",
+    "quality_profile": "showcase",
+    "viewBox": [1680, 760]
+  },
+  "components": [
+    {
+      "id": "source_csv",
+      "type": "external",
+      "label": "행동 로그 CSV",
+      "pos": [35, 180],
+      "size": [140, 64]
+    },
+    {
+      "id": "event_bus",
+      "type": "messagebus",
+      "label": "Kafka",
+      "pos": [215, 180],
+      "size": [140, 64]
+    },
+    {
+      "id": "stream_jobs",
+      "type": "backend",
+      "label": "Flink",
+      "pos": [395, 180],
+      "size": [140, 64]
+    },
+    {
+      "id": "bronze_store",
+      "type": "cloud",
+      "label": "S3 Bronze",
+      "pos": [575, 180],
+      "size": [140, 64]
+    },
+    {
+      "id": "spark_batch",
+      "type": "backend",
+      "label": "Spark Silver 정제",
+      "pos": [755, 180],
+      "size": [140, 64]
+    },
+    {
+      "id": "silver_tables",
+      "type": "database",
+      "label": "Iceberg Silver",
+      "pos": [935, 180],
+      "size": [150, 64]
+    },
+    {
+      "id": "gold_tables",
+      "type": "database",
+      "label": "Iceberg Gold",
+      "pos": [1125, 180],
+      "size": [150, 64]
+    },
+    {
+      "id": "query_engine",
+      "type": "cloud",
+      "label": "Athena",
+      "pos": [1315, 180],
+      "size": [120, 64]
+    },
+    {
+      "id": "bi_dashboard",
+      "type": "frontend",
+      "label": "Superset",
+      "pos": [1475, 180],
+      "size": [120, 64]
+    },
+    {
+      "id": "spark_gold",
+      "type": "backend",
+      "label": "Spark Gold 집계",
+      "pos": [1030, 390],
+      "size": [150, 64]
+    },
+    {
+      "id": "orchestrator",
+      "type": "backend",
+      "label": "Airflow",
+      "pos": [700, 540],
+      "size": [160, 64]
+    },
+    {
+      "id": "observability",
+      "type": "external",
+      "label": "Prometheus · Grafana",
+      "pos": [300, 540],
+      "size": [190, 64]
+    }
+  ],
+  "boundaries": [
+    {"kind": "region", "label": "Streaming ingestion", "wraps": ["event_bus", "stream_jobs"], "pad": 24},
+    {"kind": "region", "label": "Lakehouse processing", "wraps": ["bronze_store", "spark_batch", "silver_tables", "spark_gold", "gold_tables"], "pad": 24},
+    {"kind": "region", "label": "Serving", "wraps": ["query_engine", "bi_dashboard"], "pad": 24},
+    {"kind": "region", "label": "Operations", "wraps": ["orchestrator", "observability"], "pad": 24}
+  ],
+  "connections": [
+    {"from": "source_csv", "to": "event_bus", "variant": "emphasis"},
+    {"from": "event_bus", "to": "stream_jobs", "variant": "emphasis"},
+    {"from": "stream_jobs", "to": "bronze_store", "variant": "emphasis"},
+    {"from": "bronze_store", "to": "spark_batch", "variant": "emphasis"},
+    {"from": "spark_batch", "to": "silver_tables", "variant": "emphasis"},
+    {"from": "silver_tables", "to": "spark_gold", "label": "affected dates", "variant": "emphasis", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"from": "spark_gold", "to": "gold_tables", "label": "atomic overwrite", "variant": "emphasis", "route": "orthogonal-v", "fromSide": "top", "toSide": "bottom"},
+    {"from": "gold_tables", "to": "query_engine", "variant": "emphasis"},
+    {"from": "query_engine", "to": "bi_dashboard", "variant": "emphasis"},
+    {"from": "orchestrator", "to": "spark_batch", "label": "schedule · retry · spark_pool", "variant": "dashed", "route": "orthogonal-v", "fromSide": "top", "toSide": "bottom", "labelAt": [920, 390]},
+    {"from": "orchestrator", "to": "spark_gold", "variant": "dashed", "route": "orthogonal-h", "fromSide": "right", "toSide": "left"},
+    {"from": "event_bus", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"from": "stream_jobs", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"}
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "계층별 쓰기 전략",
+      "items": ["Bronze는 재처리용 append-only Parquet", "Silver는 Spark MERGE와 MOR", "Gold는 Spark가 영향 날짜 전체를 COW로 교체", "Glue Catalog가 Silver·Gold 메타데이터 관리"]
+    },
+    {
+      "dot": "amber",
+      "title": "운영 가시성",
+      "items": ["Grafana는 Kafka·Flink 상태를 실시간 감시", "Superset은 커밋 후 데이터·Iceberg 품질 확인", "Airflow가 증분과 유지보수를 직렬화"]
+    }
+  ]
+}
