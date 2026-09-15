@@ -320,3 +320,23 @@ must be set}`로 Grafana 컨테이너에 주입하고, `contact-points.yml`은 `
 - Airflow DAG 실패·재시도 초과 알림, Bronze freshness 임계값 알림은 아직 없음 (Grafana/Kafka/Flink
   경로만 완료)
 - 정밀 임계값은 실제 운영 이력이 쌓인 뒤 재검토
+
+## Airflow TaskInstance 직접 조작으로 인한 오류 종료 — 2026-09-15
+
+11월 재생 데이터 정합성 복구 도중, 재처리 중이던 `silver_funnel` 태스크가 90% 가량
+진행된 상태에서 SIGTERM으로 갑자기 종료됐다.
+
+**원인**: DAG를 unpause한 직후 스케줄러가 이미 `up_for_retry` 상태를 자동으로 재개해
+정상 진행 중이었는데, 별도로 `ti.state = None`처럼 TaskInstance를 raw SQLAlchemy ORM으로
+직접 덮어썼다. Airflow 3의 워커는 API 서버에 "이 시도가 여전히 유효한지" 계속 확인하는
+구조라, ORM으로 어긋난 상태를 스케줄러가 "not_running"으로 오인해 진행 중인 프로세스를
+강제 종료시켰다.
+
+**대응**: TaskInstance는 raw ORM으로 직접 고치지 않는다. 정말 초기화가 필요하면
+Airflow가 CLI/UI 내부에서 쓰는 정식 함수(`airflow.models.taskinstance.clear_task_instances`)를
+쓰거나, `logical_date`가 있는 run이면 `airflow tasks clear` CLI를 쓴다. 대부분은 개입 없이
+두면 스케줄러가 `up_for_retry`를 알아서 재시도한다.
+
+이후 같은 정합성 복구 과정에서 실제로 완전히 종결(`failed`)된 태스크를 재시도시킬 때는
+`clear_task_instances`를 직접 호출해 안전하게 재개했다(RUNNING 상태 태스크에 쓰면
+`RESTARTING`으로 안전하게 전환하는 보호 로직이 내장돼 있다).
