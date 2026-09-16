@@ -316,7 +316,6 @@ must be set}`로 Grafana 컨테이너에 주입하고, `contact-points.yml`은 `
 ### 남은 항목
 
 - JVM heap·GC 관측은 됐으나 해당 패널에 sanity 임계값(색상 표시)은 아직 없음
-- Slack 메시지 문구가 딱딱함 — `templates.yml` 문구만 다듬을 예정, 값·라우팅 구조는 유지
 - Airflow DAG 실패·재시도 초과 알림, Bronze freshness 임계값 알림은 아직 없음 (Grafana/Kafka/Flink
   경로만 완료)
 - 정밀 임계값은 실제 운영 이력이 쌓인 뒤 재검토
@@ -340,3 +339,19 @@ Airflow가 CLI/UI 내부에서 쓰는 정식 함수(`airflow.models.taskinstance
 이후 같은 정합성 복구 과정에서 실제로 완전히 종결(`failed`)된 태스크를 재시도시킬 때는
 `clear_task_instances`를 직접 호출해 안전하게 재개했다(RUNNING 상태 태스크에 쓰면
 `RESTARTING`으로 안전하게 전환하는 보호 로직이 내장돼 있다).
+
+## Slack 알림 문구 개선 — 2026-09-16
+
+기존 템플릿(`templates.yml`)은 규칙명·심각도·summary를 그대로 나열해 딱딱했다. 이
+규모에서는 조치 방법·Runbook·Silence 링크까지 넣는 건 과하다고 판단해, 제목은
+`[심각도][상태] 알림명`, 본문은 FIRING일 때만 summary와 현재값(`.Values.A`, 규칙의
+원본 메트릭 refId)을 보여주고 RESOLVED일 때는 "정상 복구되었습니다."만 보여주는
+최소 구성으로 정리했다.
+
+**주의**: `notification-policies.yml`의 `group_interval: 5m` 때문에, 최초 FIRING 발송
+이후 같은 그룹(alertname+severity)의 다음 업데이트(RESOLVED 포함)는 최소 5분 뒤에나
+나간다. 복구 알림이 안 왔다고 판단하기 전에 5분 이상 기다려야 한다 — 실제로 이 시간을
+못 채우고 스택을 내렸다가 복구 메시지를 놓친 적이 있다.
+
+실제 Flink 잡 취소·복구로 FIRING·RESOLVED 두 케이스 모두 새 문구가 Slack에 그대로
+도달하는 것을 확인했다.

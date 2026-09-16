@@ -4,11 +4,10 @@ templates:
   - orgId: 1
     name: ecommerce_slack
     template: |
-      {{ define "ecommerce.slack.title" }}[{{ .Status | toUpper }}] Ecommerce pipeline{{ end }}
+      {{ define "ecommerce.slack.title" }}[{{ .CommonLabels.severity | toUpper }}][{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}{{ end }}
       {{ define "ecommerce.slack.text" }}
       {{ range .Alerts }}
-      *{{ .Labels.alertname }}* ({{ .Labels.severity }})
-      {{ .Annotations.summary }}
-      {{ if .DashboardURL }}<{{ .DashboardURL }}|Grafana dashboard>{{ end }}
+      {{ if eq .Status "firing" }}{{ .Annotations.summary }}
+      현재값: {{ printf "%.0f" (index .Values "A") }}{{ else }}정상 복구되었습니다.{{ end }}
       {{ end }}
       {{ end }}
