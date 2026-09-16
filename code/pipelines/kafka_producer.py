@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -115,13 +116,51 @@ def to_json(row: dict, event_id: str) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def publish(producer: KafkaProducer, topic: str, event_id: str, row: dict) -> None:
+class SendCounter:
+    """send()는 비동기라 콜백으로만 실제 성공/실패를 알 수 있다."""
+
+    MAX_LOGGED_FAILURES = 20
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.confirmed = 0
+        self.failed = 0
+
+    def on_success(self, _metadata) -> None:
+        with self._lock:
+            self.confirmed += 1
+
+    def _register_failure(self) -> int:
+        with self._lock:
+            self.failed += 1
+            return self.failed
+
+    def _log_failure(self, failed_count: int, topic: str, event_id: str, exc: Exception) -> None:
+        if failed_count <= self.MAX_LOGGED_FAILURES:
+            logger.error(f"발행 실패 topic={topic} event_id={event_id}: {exc}")
+        elif failed_count == self.MAX_LOGGED_FAILURES + 1:
+            logger.error(f"발행 실패가 {self.MAX_LOGGED_FAILURES}건을 넘어 이후는 집계만 함")
+
+    def record_immediate_failure(self, topic: str, event_id: str, exc: Exception) -> None:
+        self._log_failure(self._register_failure(), topic, event_id, exc)
+
+    def make_errback(self, topic: str, event_id: str):
+        def _on_error(exc: Exception) -> None:
+            self._log_failure(self._register_failure(), topic, event_id, exc)
+
+        return _on_error
+
+
+def publish(producer: KafkaProducer, topic: str, event_id: str, row: dict, counter: SendCounter) -> None:
     key = row.get("user_id")
     value = to_json(row, event_id)
     try:
-        producer.send(topic, key=key, value=value)
+        future = producer.send(topic, key=key, value=value)
     except Exception as e:
-        logger.error(f"발행 실패 topic={topic} event_id={event_id}: {e}")
+        counter.record_immediate_failure(topic, event_id, e)
+        return
+    future.add_callback(counter.on_success)
+    future.add_errback(counter.make_errback(topic, event_id))
 
 
 def main() -> None:
@@ -129,7 +168,8 @@ def main() -> None:
     producer = build_producer(args.bootstrap_servers)
 
     prev_event_time: datetime | None = None
-    sent = 0
+    counter = SendCounter()
+    attempted = 0
 
     for row in read_events(args.csv_path, limit=args.limit):
         event_type = row["event_type"]
@@ -145,14 +185,35 @@ def main() -> None:
         prev_event_time = curr_event_time
 
         event_id = make_event_id(row)
-        publish(producer, topic, event_id, row)
-        sent += 1
+        publish(producer, topic, event_id, row, counter)
+        attempted += 1
 
-        if sent % 100_000 == 0:
-            logger.info(f"sent={sent} last_event_time={row['event_time']}")
+        if attempted % 100_000 == 0:
+            logger.info(f"attempted={attempted} last_event_time={row['event_time']}")
 
-    producer.flush()
-    logger.info(f"done. total_sent={sent}")
+    flush_error: Exception | None = None
+    try:
+        producer.flush()
+    except Exception as e:
+        flush_error = e
+        logger.error(f"producer.flush() 실패: {e}")
+
+    accounted = counter.confirmed + counter.failed
+    if accounted != attempted:
+        logger.error(
+            f"집계 불일치: attempted={attempted}인데 confirmed+failed={accounted} "
+            "(콜백이 아직 안 왔거나 유실됐을 수 있음)"
+        )
+
+    logger.info(
+        f"done. attempted={attempted} confirmed={counter.confirmed} failed={counter.failed}"
+    )
+
+    if counter.failed > 0 or flush_error is not None or accounted != attempted:
+        raise RuntimeError(
+            f"Kafka 발행 실패: attempted={attempted} confirmed={counter.confirmed} "
+            f"failed={counter.failed}" + (f", flush_error={flush_error}" if flush_error else "")
+        )
 
 
 if __name__ == "__main__":
