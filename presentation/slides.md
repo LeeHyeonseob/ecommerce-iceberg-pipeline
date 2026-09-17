@@ -196,7 +196,6 @@ GMV는 `silver_events`, 전환율은 `silver_funnel`에서 계산 — **서로 �
 
 ## 개선 계획
 
-- Iceberg 재작성/삭제 주기를 일별 누적 관측 기반으로 확정 (현재 주 1회는 초기값)
-- 입력 레코드 검증 계약과 레코드 단위 DLQ 추가로 데이터 신뢰성 강화
-- Grafana sanity 임계값 정밀화, Airflow 실패·Bronze freshness 알림 확장
-- 부하 실측을 늘려 10x·100x 스케일아웃 필요성 재평가
+- **DLQ 운영 고도화**: 발생량 알림과 재처리 절차 추가
+- **메시지 계약 강화**: Producer가 늘면 JSON에서 Avro + Schema Registry로 전환 검토
+- **운영 기준 정교화**: 관측 데이터를 바탕으로 Iceberg 유지보수 주기와 알림 임계값 조정
