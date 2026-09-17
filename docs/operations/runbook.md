@@ -178,6 +178,78 @@ position delete는 기본 옵션(`min-input-files=5`)으로는 dangling delete�
 효과를 잃으므로 쓰지 않는다. `docker exec` 직접 실행은 `spark_pool`을 우회해 증분과 겹칠 수
 있으므로 쓰지 않는다.
 
+### partition pruning 실측 — 2026-09-17 완료
+
+`silver_events_to_funnel.py`의 `build_propagated_keys`/`read_purchase_evidence`가 쓰는
+`event_date`/`funnel_date` `.isin(partitions)` 필터가 실제로 Iceberg partition pruning을
+타는지 의심 지점이었다(안 타면 27M+ 행 전체 스캔이 될 수 있어 디스크 고갈의 유력 원인).
+`spark-runner` 컨테이너에서 실제 `glue.ecommerce_lakehouse.silver_events`/`silver_funnel`에
+직접 필터를 걸어 확인했다.
+
+`df.inputFiles()`는 Iceberg V2 소스에서 항상 빈 배열을 반환해 지표로 쓸 수 없었다. 대신
+`df.rdd.getNumPartitions()`(플랜만 실행, 잡 실행 없이 스캔 입력 분할 수를 알려줌)로 재측정:
+
+| 케이스 | 입력 파티션(task) 수 |
+| --- | ---: |
+| `silver_events` 전체 (33일, 파일 47개) | 37 |
+| `event_date IN (3일치)` | 4 |
+| `event_date = 1일치` | 2 |
+| `silver_funnel` 전체 | 52 |
+| `funnel_date IN (2일치)` | 4 |
+
+물리 실행 계획에도 `BatchScan ... [filters=event_date IN (18170, 18171, 18172)]`로 필터가
+push-down된 것이 보이고, `<table>.files` 메타데이터 쿼리로 대조한 해당 날짜의 실제 파일 수(3+1+1=5)와
+스캔 입력 개수가 일치한다. **partition pruning은 정상 작동한다.** 디스크 고갈 원인에서 제외.
+
+남은 용의자는 두 함수의 JOIN·DISTINCT가 만드는 shuffle spill이다(원래 추정과 동일). 다음 조사는
+이 경로의 실제 shuffle write 바이트량을 실측하는 것부터 시작한다 — `docs/TODO.md`의
+"작은 시간 구간 재처리의 불필요한 I/O 축소" 항목 참고.
+
+### 재처리 shuffle 재현 — 2026-09-17 완료
+
+과거 "88만 건 재처리" 때 관측된 디스크 급증이 실제로 재현되는지, `test-incremental` 환경에서
+같은 규모로 재현했다. `silver_funnel_test_incremental`(13,424,825건, `purchased=0` 13,094,019건)에서
+`purchased=0`인 `(user_id, product_id)` 88만 쌍을 뽑아 새 `user_session`(다른 세션)을 붙이고
+`event_date=2019-10-15`(테스트 데이터의 마지막 날)로 합성한 purchase 배치를 만들어
+`silver_events_to_funnel.py --mode incremental --env test-incremental`로 실행했다.
+
+`spark-runner` 컨테이너의 `df -h /`를 20초 간격으로 관측:
+
+| 경과 | 디스크 사용량 |
+| --- | ---: |
+| 시작 전 | 25G / 48G |
+| +100초 | 30G |
+| +140초 (peak) | 33G |
+| 완료 직후 | 25G (완전 회수) |
+
+약 8GB가 일시적으로 증가했다가 job 종료와 동시에 즉시 회수됐다 — 디스크 누수가 아니라
+shuffle 임시 파일(`/tmp/blockmgr-*`, root overlay와 같은 볼륨)이 원인임을 확인. 실행 로그에는
+기본값 `spark.sql.shuffle.partitions=200`짜리 스테이지가 여러 번(Stage 24/45/61/79/80/108/147/165/191)
+등장했다 — JOIN·DISTINCT의 shuffle stage가 기본 200개 reduce partition으로 계획된 것을
+관측했을 뿐, partition 수를 바꿔가며 비교하는 격리 실험은 하지 않았다. `spark.sql.shuffle.partitions`는
+reduce 쪽 task/partition 개수를 정하는 것이지 물리 shuffle 파일 수가 그대로 200개라는
+뜻은 아니다 — 이 관측은 "reduce 단계가 잘게 쪼개진다"는 증거이지, 200이라는 값 자체가
+8GB 증가분의 원인이라고 확정할 근거는 아니다.
+
+`영향받은 키=1,953,080 재계산된 funnel=1,073,080`이었고, **영향받은 `funnel_date`가 테스트
+테이블에 있는 15일 전부**였다. 구매일(10-15) 기준 과거 30일 역방향 윈도우가 테스트 데이터
+전체 기간을 덮어버렸기 때문 — partition pruning은 정상 작동했지만(위 절 참고), 애초에
+`.isin(partitions)`로 넘기는 파티션 목록 자체가 테이블 전체를 커버해버리면 프루닝의 이점이 없다.
+프로덕션(33일 분량)에서 월말 근처 구매가 몰리면 같은 패턴으로 더 넓은 범위가 걸릴 수 있다.
+
+**결론**: 디스크 급증은 실제 데이터 누수가 아니라, 넓은 재처리 범위가 만드는 대용량
+JOIN/DISTINCT의 shuffle이 원인이다. 기본 200-partition은 그 shuffle을 작은 파일 여러 개로
+쪼개는 관측된 요소일 뿐, 200이라는 값 자체가 8GB 증가분의 근본 원인이라고 확정할 근거는
+없다 — partition 수를 낮춰가며 비교하는 격리 실험은 하지 않았다. 정상적인 소규모 일일
+배치라면 영향 범위가 좁아 문제가 안 되지만, 캐치업처럼 넓은 날짜 범위의 구매가 한 배치에
+몰리면 재현된다. 개선 방향(착수 전, 실측만 완료): `read_purchase_evidence`의
+`candidate_funnels`를 브로드캐스트 가능한 크기로 필터링해 shuffle join 대신 broadcast join
+유도, 재처리 배치 크기 자체를 좁혀 캐치업을 여러 번에 나눠 도는 방안. `spark.sql.shuffle.partitions`
+하향은 후보에서 제외한다 — 파티션 수를 줄이면 파티션당 데이터가 커져 오히려 개별 파티션의
+spill/OOM 위험이 늘어날 수 있어, 위 두 원인 자체를 줄이는 방향이 아니라면 역효과가 날 수 있다.
+스크립트는 재사용 목적의 영구 파일로 남기지 않았다(1회성 진단, `/tmp` 스크래치로 실행 후 S3
+임시 배치 삭제).
+
 ## Grafana·Prometheus 모니터링
 
 Kafka·Flink 실시간 지표는 `infra/docker-compose.monitoring.yml`(Prometheus, kafka-exporter,
