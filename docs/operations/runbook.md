@@ -388,8 +388,30 @@ must be set}`로 Grafana 컨테이너에 주입하고, `contact-points.yml`은 `
 ### 남은 항목
 
 - JVM heap·GC 관측은 됐으나 해당 패널에 sanity 임계값(색상 표시)은 아직 없음
-- Bronze freshness 임계값 알림은 아직 없음 (Airflow DAG 실패 알림은 아래 절 참고, 완료)
 - 정밀 임계값은 실제 운영 이력이 쌓인 뒤 재검토
+
+### Bronze freshness 알림 추가 — 2026-09-17
+
+Kafka lag·Flink 잡 수 알림은 소비 지연이나 잡 죽음은 잡지만, producer가 멈춰서 Kafka에
+새 메시지 자체가 안 들어오는 경우(lag=0, 잡은 RUNNING)는 못 잡는 사각지대였다. 새 exporter
+없이 DLQ 작업 때 이미 추가해 둔 `raw_zone_consumer.py`의 `business.event_count`(job당 1개)를
+재사용했다 — Prometheus에는 `flink_taskmanager_job_task_operator_business_event_count{job_name=...}`로
+노출된다.
+
+`sanity-rules.yml`에 `sanity-bronze-freshness` 규칙을 추가했다:
+`min(sum by (job_name) (increase(...[10m])))`가 1 미만인 상태가 5분 지속되면 발동 —
+view/cart/purchase 세 job 중 하나라도 10분간 신규 이벤트가 0건이면 잡힌다.
+
+**실제로 검증했다.** Grafana 재기동 시점에 producer가 꺼져 있어 자연스럽게 firing까지
+재현됐다(pending 8회 관측 후 firing 전환, 실제 Slack에 `[WARNING][FIRING]` 도착 확인).
+이후 producer를 짧게(5,000건, `--speed 3000`) 돌려 세 job 카운터를 모두 증가시켰고,
+Grafana 룰 상태가 `inactive`로 돌아온 뒤 `group_interval: 5m`이 지나서 RESOLVED가
+`[WARNING][RESOLVED]`로 도착하는 것까지 확인했다. RESOLVED에도 severity가 붙는 건
+버그가 아니라 `ecommerce.slack.title` 템플릿이 상태와 무관하게 항상 `[심각도][상태]`를
+보여주도록 설계된 것이다(기존 5개 알림도 전부 동일하게 동작).
+
+이 알림도 severity는 `warning`이다 — producer를 의도적으로 멈춘 상태(데모 종료 등)에서도
+울리기 때문에, critical로 두면 오탐이 잦다.
 
 ## Airflow TaskInstance 직접 조작으로 인한 오류 종료 — 2026-09-15
 
