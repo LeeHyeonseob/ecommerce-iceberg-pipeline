@@ -31,5 +31,5 @@ Gold가 커져 날짜 단위 재집계도 SLA를 넘을 때 더 세밀한 grain�
 
 ## 구현 근거
 
-- [Gold 재집계 파이프라인](../../code/pipelines/silver_to_gold.py)
+- [Gold 재집계 파이프라인](../../code/pipelines/gold/silver_to_gold.py)
 - [Gold Iceberg DDL](../../code/ddl/)

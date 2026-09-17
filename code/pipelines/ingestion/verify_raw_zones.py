@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.storagelevel import StorageLevel
-from spark_session import build_spark
+from pipelines.common.spark_session import build_spark
 
 load_dotenv()
 

@@ -23,13 +23,12 @@ GMV·카테고리 GMV·SLA는 `silver_events`, 전환 지표는 `silver_funnel`,
 
 | 위치 | 책임 |
 | --- | --- |
-| `code/pipelines/event_contract.py` | Producer·Consumer가 공유하는 토픽·필드·시간 형식 계약 |
-| `code/pipelines/event_validation.py` | PyFlink와 독립적인 입력 레코드 검증 |
-| `code/pipelines/kafka_producer.py` | `event_id` 생성, event type별 토픽 라우팅 |
-| `code/pipelines/raw_zone_consumer.py` | Kafka 원문을 검증해 정상은 Bronze, 실패는 DLQ로 분기 |
-| `code/pipelines/bronze_to_silver_events.py` | 정제, dedup, Silver MERGE, 배치 산출물 |
-| `code/pipelines/silver_events_to_funnel.py` | 세션 퍼널과 30일 cross-session 전환 계산 |
-| `code/pipelines/silver_to_gold.py` | 이벤트·퍼널 grain별 KPI와 영향 날짜 재집계 |
+| `code/pipelines/common/` | 공통 이벤트 계약·순수 검증·Spark 세션 설정 |
+| `code/pipelines/ingestion/kafka_producer.py` | `event_id` 생성, event type별 토픽 라우팅 |
+| `code/pipelines/ingestion/raw_zone_consumer.py` | Kafka 원문을 검증해 정상은 Bronze, 실패는 DLQ로 분기 |
+| `code/pipelines/silver/bronze_to_silver_events.py` | 정제, dedup, Silver MERGE, 배치 산출물 |
+| `code/pipelines/silver/silver_events_to_funnel.py` | 세션 퍼널과 30일 cross-session 전환 계산 |
+| `code/pipelines/gold/silver_to_gold.py` | 이벤트·퍼널 grain별 KPI와 영향 날짜 재집계 |
 | `airflow/dags/` | 증분 순서, 재시도, Spark 작업 직렬화, 재작성·삭제 유지보수 DAG |
 | `code/ddl/` | Glue/Iceberg 테이블 계약 |
 | `code/health-queries/` | 데이터 및 Iceberg metadata 진단 |

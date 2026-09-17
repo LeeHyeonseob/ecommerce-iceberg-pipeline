@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import NamedTuple
 
-from event_contract import EVENT_TIME_FORMAT, REQUIRED_FIELDS
+from .event_contract import EVENT_TIME_FORMAT, REQUIRED_FIELDS
 
 
 class ValidationResult(NamedTuple):

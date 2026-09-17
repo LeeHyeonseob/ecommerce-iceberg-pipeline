@@ -198,7 +198,7 @@ docker compose -f infra/docker-compose.superset.yml up -d --build
 최초 1회, `spark-runner`에서 Silver·Gold Iceberg 테이블을 생성한다.
 
 ```bash
-docker exec spark-runner python /opt/project/code/pipelines/run_ddl.py
+docker exec spark-runner python /opt/project/code/pipelines/operations/run_ddl.py
 ```
 
 ### 9.3 수집과 배치 실행
@@ -208,11 +208,11 @@ Flink Bronze 수집 잡을 제출한 뒤 Producer로 이벤트를 재생한다. 
 ```bash
 for zone in view cart purchase; do
   docker exec jobmanager /opt/flink/bin/flink run -d -m jobmanager:8081 \
-    -py /opt/flink/jobs/raw_zone_consumer.py \
+    -py /opt/project/code/pipelines/ingestion/raw_zone_consumer.py \
     --topic "ecommerce.${zone}" --raw-path "s3://${S3_BUCKET}/raw/${zone}/"
 done
 
-python code/pipelines/kafka_producer.py --csv-path <csv_gzip_path> --speed 60
+PYTHONPATH=code python -m pipelines.ingestion.kafka_producer --csv-path <csv_gzip_path> --speed 60
 ```
 
 Airflow DAG는 `silver_events → silver_funnel → Gold 5개 → health_check` 순서로 실행한다.

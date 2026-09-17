@@ -27,7 +27,7 @@ def health_command(label: str) -> str:
     return f"""
     set -euo pipefail
     echo '--- health {label} ---'
-    docker exec spark-runner python {PIPELINE_DIR}/health_check.py \\
+    docker exec spark-runner python {PIPELINE_DIR}/operations/health_check.py \\
       --s3-bucket "$S3_BUCKET" \\
       --aws-region "${{AWS_REGION:-ap-northeast-2}}" \\
       --detail \\
@@ -79,7 +79,7 @@ def iceberg_compaction():
           IFS=',' read -ra PAIRS <<< "$MAINT_DELETE_OPTS"
           for pair in "${{PAIRS[@]}}"; do ARGS+=(--delete-rewrite-option "$pair"); done
         fi
-        docker exec spark-runner python {PIPELINE_DIR}/iceberg_maintenance.py \\
+        docker exec spark-runner python {PIPELINE_DIR}/operations/iceberg_maintenance.py \\
           --s3-bucket "$S3_BUCKET" \\
           --aws-region "${{AWS_REGION:-ap-northeast-2}}" \\
           "${{ARGS[@]}}"

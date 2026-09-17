@@ -9,7 +9,7 @@ from typing import Callable
 
 from dotenv import load_dotenv
 from pyspark.sql import SparkSession
-from spark_session import build_spark
+from pipelines.common.spark_session import build_spark
 
 load_dotenv()
 

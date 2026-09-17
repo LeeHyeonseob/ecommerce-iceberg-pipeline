@@ -4,9 +4,9 @@ import sys
 import unittest
 from unittest import mock
 
-PIPELINES_DIR = Path(__file__).resolve().parents[1] / "code" / "pipelines"
-sys.path.insert(0, str(PIPELINES_DIR))
-import event_validation as validation  # noqa: E402
+CODE_DIR = Path(__file__).resolve().parents[1] / "code"
+sys.path.insert(0, str(CODE_DIR))
+from pipelines.common import event_validation as validation  # noqa: E402
 
 
 class ValidateEventTest(unittest.TestCase):
@@ -174,7 +174,7 @@ class ValidateEventTest(unittest.TestCase):
 
     def test_never_raises_on_unexpected_exception(self):
         """예상하지 못한 예외도 VALIDATION_INTERNAL_ERROR로 변환한다."""
-        with mock.patch("event_validation.json.loads", side_effect=RuntimeError("boom")):
+        with mock.patch.object(validation.json, "loads", side_effect=RuntimeError("boom")):
             result = validation.validate_event('{"anything": "here"}', self.expected_event_type)
         self.assertFalse(result.is_valid)
         self.assertEqual(result.reason_code, "VALIDATION_INTERNAL_ERROR")

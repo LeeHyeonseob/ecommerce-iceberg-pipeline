@@ -55,7 +55,7 @@ def iceberg_cleanup():
     def cleanup() -> str:
         return f"""
         set -euo pipefail
-        docker exec spark-runner python {PIPELINE_DIR}/iceberg_maintenance.py \\
+        docker exec spark-runner python {PIPELINE_DIR}/operations/iceberg_maintenance.py \\
           --s3-bucket "$S3_BUCKET" \\
           --aws-region "${{AWS_REGION:-ap-northeast-2}}" \\
           --steps expire_snapshots,remove_orphan_files \\

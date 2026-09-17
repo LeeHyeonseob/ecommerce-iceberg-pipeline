@@ -358,7 +358,7 @@ Airflow가 CLI/UI 내부에서 쓰는 정식 함수(`airflow.models.taskinstance
 
 ## Flink 레코드 단위 DLQ 도입 — 2026-09-16~17
 
-`code/pipelines/raw_zone_consumer.py`가 `format=json` + `json.ignore-parse-errors=true`로
+`code/pipelines/ingestion/raw_zone_consumer.py`가 `format=json` + `json.ignore-parse-errors=true`로
 Kafka를 읽어, JSON 파싱에 실패한 레코드가 SQL에 도달하기도 전에 커넥터(정확히는 JSON
 역직렬화 계층) 단에서 조용히 사라지는 문제가 있었다. `format=raw`로 원문을 문자열
 그대로 받고 직접 파싱·검증한 뒤 `StatementSet`으로 정상은 Bronze, 실패는

@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from spark_session import build_spark
+from pipelines.common.spark_session import build_spark
 
 load_dotenv()
 
-DDL_DIR = Path(__file__).resolve().parents[1] / "ddl"
+DDL_DIR = Path(__file__).resolve().parents[2] / "ddl"
 
 
 def parse_args() -> argparse.Namespace:

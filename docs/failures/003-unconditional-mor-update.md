@@ -71,5 +71,5 @@ Silver MERGE를 수정할 때 무조건적인 matched UPDATE를 다시 도입하
 
 ## 구현·검증 근거
 
-- [Silver Events MERGE](../../code/pipelines/bronze_to_silver_events.py)
-- [Silver Funnel MERGE](../../code/pipelines/silver_events_to_funnel.py)
+- [Silver Events MERGE](../../code/pipelines/silver/bronze_to_silver_events.py)
+- [Silver Funnel MERGE](../../code/pipelines/silver/silver_events_to_funnel.py)

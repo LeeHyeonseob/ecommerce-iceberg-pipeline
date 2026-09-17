@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from spark_session import build_spark
+from pipelines.common.spark_session import build_spark
 
 # 상세 쿼리는 파일명이 아니라 detail/ 디렉터리로 구분한다.
 DETAIL_DIR_NAME = "detail"
@@ -79,7 +79,7 @@ def render_detail_query(sql: str, tables: list[str], partition_limit: int) -> st
 def main() -> None:
     args = parse_args()
     spark = build_spark("health_check", args.s3_bucket, args.aws_region, log_level="WARN")
-    query_dir = Path(__file__).parents[1] / "health-queries"
+    query_dir = Path(__file__).parents[2] / "health-queries"
     results = {}
     try:
         for path in query_paths(query_dir, args.detail):

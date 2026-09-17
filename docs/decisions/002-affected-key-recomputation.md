@@ -33,5 +33,5 @@
 
 ## 구현 근거
 
-- [Silver Funnel 재계산](../../code/pipelines/silver_events_to_funnel.py)
+- [Silver Funnel 재계산](../../code/pipelines/silver/silver_events_to_funnel.py)
 - [Airflow 증분 DAG](../../airflow/dags/ecommerce_incremental.py)

@@ -13,7 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from kafka import KafkaProducer
 
-from event_contract import EVENT_FIELDS, EVENT_TIME_FORMAT, TOPIC_BY_EVENT_TYPE
+from pipelines.common.event_contract import EVENT_FIELDS, EVENT_TIME_FORMAT, TOPIC_BY_EVENT_TYPE
 
 load_dotenv()
 

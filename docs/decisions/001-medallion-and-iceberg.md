@@ -30,5 +30,5 @@ Bronze는 Iceberg compaction을 사용할 수 없다. Bronze 파일 수가 sink 
 
 ## 구현 근거
 
-- [Flink Bronze consumer](../../code/pipelines/raw_zone_consumer.py)
+- [Flink Bronze consumer](../../code/pipelines/ingestion/raw_zone_consumer.py)
 - [Silver·Gold Iceberg DDL](../../code/ddl/)

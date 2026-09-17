@@ -6,7 +6,7 @@ from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOpe
 from airflow.sdk import CronTriggerTimetable, dag, task
 from dag_utils import PIPELINE_DIR, parse_last_json
 
-HEALTH_SCRIPT = f"{PIPELINE_DIR}/health_check.py"
+HEALTH_SCRIPT = f"{PIPELINE_DIR}/operations/health_check.py"
 
 # Iceberg 재작성 주기. 0=월 ... 6=일. 부모 배치의 UTC 데이터 구간 기준으로 판단한다.
 COMPACTION_WEEKDAY = 5
@@ -47,7 +47,7 @@ def ecommerce_incremental():
         {{% endif %}}
         RUN_TOKEN=$(printf '%s' '{{{{ run_id }}}}' | sha256sum | cut -c1-16)
         BATCH_PATH="s3a://$S3_BUCKET/control/funnel-batches/run_id=$RUN_TOKEN/attempt={{{{ ti.try_number }}}}/"
-        docker exec spark-runner python {PIPELINE_DIR}/bronze_to_silver_events.py \\
+        docker exec spark-runner python {PIPELINE_DIR}/silver/bronze_to_silver_events.py \\
           --env '{{{{ params.pipeline_env }}}}' \\
           --from-datetime "$FROM_DATETIME" \\
           --to-datetime "$TO_DATETIME" \\
@@ -69,7 +69,7 @@ def ecommerce_incremental():
         if [ "$EVENT_COUNT" -eq 0 ]; then
           echo '{{"affected_key_count": 0, "funnel_dates": []}}'
         else
-          docker exec spark-runner python {PIPELINE_DIR}/silver_events_to_funnel.py \\
+          docker exec spark-runner python {PIPELINE_DIR}/silver/silver_events_to_funnel.py \\
             --mode incremental \\
             --env '{{{{ params.pipeline_env }}}}' \\
             --batch-input-path "$BATCH_PATH"
@@ -95,7 +95,7 @@ def ecommerce_incremental():
         ARGS="--env {{{{ params.pipeline_env }}}}"
         [ -z "$EVENT_DATES" ] || ARGS="$ARGS --event-dates $EVENT_DATES"
         [ -z "$FUNNEL_DATES" ] || ARGS="$ARGS --funnel-dates $FUNNEL_DATES"
-        docker exec spark-runner python {PIPELINE_DIR}/silver_to_gold.py $ARGS
+        docker exec spark-runner python {PIPELINE_DIR}/gold/silver_to_gold.py $ARGS
         """
 
     @task.bash(pool="spark_pool", do_xcom_push=False)

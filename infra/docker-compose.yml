@@ -35,6 +35,7 @@ services:
       - "9249:9249"   # Prometheus metrics
     command: jobmanager
     environment:
+      - PYTHONPATH=/opt/project/code
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
@@ -47,7 +48,7 @@ services:
       - ../.env
     volumes:
       # S3 인증은 .env의 AWS_ACCESS_KEY_ID/SECRET 환경변수로 처리 (Hadoop S3A가 ~/.aws 파일을 안 읽음)
-      - ../code/pipelines:/opt/flink/jobs   # raw_zone_consumer.py를 컨테이너 안에서 제출 가능하게
+      - ../code:/opt/project/code   # pipelines 패키지와 공통 모듈을 함께 마운트
 
   taskmanager:
     build:
@@ -60,6 +61,7 @@ services:
     ports:
       - "9250:9249"   # Prometheus metrics (컨테이너 내부는 9249)
     environment:
+      - PYTHONPATH=/opt/project/code
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
@@ -72,7 +74,7 @@ services:
     env_file:
       - ../.env
     volumes:
-      - ../code/pipelines:/opt/flink/jobs
+      - ../code:/opt/project/code
 
 volumes:
   kafka-data:

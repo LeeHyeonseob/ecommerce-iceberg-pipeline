@@ -8,7 +8,7 @@ from functools import reduce
 from dotenv import load_dotenv
 from pyspark.sql import DataFrame, SparkSession, Window
 from pyspark.sql import functions as F
-from spark_session import build_spark
+from pipelines.common.spark_session import build_spark
 
 load_dotenv()
 
@@ -68,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--batch-output-path",
         help="지정 시 이번 배치(dedup 후)를 이 S3 경로에 Parquet로 저장. "
-        "silver_events_to_funnel.py --mode incremental --batch-input-path가 읽는다. 생략 시 저장 안 함",
+        "silver/silver_events_to_funnel.py --mode incremental --batch-input-path가 읽는다. 생략 시 저장 안 함",
     )
     args = parser.parse_args()
     args.target_table = TARGET_TABLES[args.env]

@@ -1,7 +1,7 @@
 -- 6회차 과제: rewrite_data_files / rewrite_position_delete_files / rewrite_manifests
 --
 -- 실행: spark-runner의 spark-sql로 이 파일을 실행한다.
--- code/pipelines/spark_session.py와 동일한 Glue/Iceberg/S3A 설정을 함께 전달해야 하며,
+-- code/pipelines/common/spark_session.py와 동일한 Glue/Iceberg/S3A 설정을 함께 전달해야 하며,
 -- 그 설정을 묶어주는 편의 스크립트는 커밋돼 있지 않다.
 -- run_ddl.py는 code/ddl/만 대상으로 하므로 이 파일에는 쓸 수 없다.
 --

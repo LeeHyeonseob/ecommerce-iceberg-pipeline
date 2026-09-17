@@ -33,5 +33,5 @@ Spark, Hadoop, Iceberg, Flink jar 버전을 독립적으로 올리지 않는다.
 
 ## 구현 근거
 
-- [Spark S3·Iceberg 설정](../../code/pipelines/spark_session.py)
+- [Spark S3·Iceberg 설정](../../code/pipelines/common/spark_session.py)
 - [Flink 런타임 의존성](../../infra/flink.Dockerfile)
