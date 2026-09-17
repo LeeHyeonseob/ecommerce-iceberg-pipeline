@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS glue.ecommerce_lakehouse.gold_data_quality (
     purchase_view_ratio       DOUBLE,
     null_category_rate        DOUBLE,
     null_brand_rate           DOUBLE,
-    price_null_cnt            BIGINT      COMMENT '캐스팅 실패 건수',
+    price_null_cnt            BIGINT      COMMENT 'price NULL 건수(원본 NULL과 캐스팅 실패를 구분하지 않음)',
     price_nonpositive_cnt     BIGINT,
     purchase_without_view_cnt BIGINT      COMMENT '같은 세션에 view 없이 발생한 구매. 세션 안만 본 것이라 귀속 불가와는 다르다',
     updated_at                TIMESTAMP
