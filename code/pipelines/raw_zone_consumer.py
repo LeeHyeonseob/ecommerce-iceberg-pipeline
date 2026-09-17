@@ -1,9 +1,33 @@
 import argparse
+import json
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import DataTypes, StreamTableEnvironment
+from pyflink.table import DataTypes, Row, StreamTableEnvironment
 from pyflink.table.udf import ScalarFunction, udf
+
+ALLOWED_TOPICS = ["ecommerce.view", "ecommerce.cart", "ecommerce.purchase"]
+DLQ_TOPIC = "ecommerce.events.dlq"
+DLQ_FAILURE_STAGE = "FLINK_VALIDATION"
+EVENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S %Z"
+REQUIRED_FIELDS = ["event_id", "event_type", "event_time", "user_id", "user_session", "product_id"]
+
+PARSED_ROW_TYPE = DataTypes.ROW([
+    DataTypes.FIELD("is_valid", DataTypes.BOOLEAN()),
+    DataTypes.FIELD("reason_code", DataTypes.STRING()),
+    DataTypes.FIELD("failure_detail", DataTypes.STRING()),
+    DataTypes.FIELD("event_time", DataTypes.STRING()),
+    DataTypes.FIELD("event_type", DataTypes.STRING()),
+    DataTypes.FIELD("product_id", DataTypes.STRING()),
+    DataTypes.FIELD("category_id", DataTypes.STRING()),
+    DataTypes.FIELD("category_code", DataTypes.STRING()),
+    DataTypes.FIELD("brand", DataTypes.STRING()),
+    DataTypes.FIELD("price", DataTypes.STRING()),
+    DataTypes.FIELD("user_id", DataTypes.STRING()),
+    DataTypes.FIELD("user_session", DataTypes.STRING()),
+    DataTypes.FIELD("event_id", DataTypes.STRING()),
+])
 
 
 class BusinessMetricFunction(ScalarFunction):
@@ -44,9 +68,101 @@ class BusinessMetricFunction(ScalarFunction):
         return event_type
 
 
+class ParseAndValidate(ScalarFunction):
+    """원문을 검증하되 예외를 밖으로 던지거나 부수효과를 만들지 않는다."""
+
+    def __init__(self, expected_event_type: str):
+        self.expected_event_type = expected_event_type
+
+    def eval(self, payload):
+        try:
+            return self._validate(payload)
+        except Exception as e:
+            return self._invalid("VALIDATION_INTERNAL_ERROR", str(e))
+
+    def _validate(self, payload):
+        try:
+            obj = json.loads(payload)
+        except (json.JSONDecodeError, TypeError) as e:
+            return self._invalid("MALFORMED_JSON", str(e))
+        if not isinstance(obj, dict):
+            return self._invalid("MALFORMED_JSON", "payload is not a JSON object")
+
+        # UDF 밖의 Beam Row 인코딩에서 실패하지 않도록 STRING 필드 타입을 먼저 맞춘다.
+        fields = {
+            name: self._coerce_str(obj.get(name))
+            for name in (*REQUIRED_FIELDS, "category_id", "category_code", "brand")
+        }
+        price = obj.get("price")
+
+        for field in REQUIRED_FIELDS:
+            value = fields[field]
+            if value is None or value.strip() == "":
+                return self._invalid("MISSING_REQUIRED_FIELD", field)
+
+        event_id = fields["event_id"]
+        event_type = fields["event_type"]
+        event_time = fields["event_time"]
+        user_id = fields["user_id"]
+        user_session = fields["user_session"]
+        product_id = fields["product_id"]
+        category_id = fields["category_id"]
+        category_code = fields["category_code"]
+        brand = fields["brand"]
+
+        if event_type != self.expected_event_type:
+            return self._invalid(
+                "EVENT_TYPE_MISMATCH", f"got={event_type} expected={self.expected_event_type}"
+            )
+
+        try:
+            datetime.strptime(event_time, EVENT_TIME_FORMAT)
+        except (ValueError, TypeError) as e:
+            return self._invalid("INVALID_EVENT_TIME", str(e))
+
+        try:
+            amount = Decimal(str(price))
+            if not (amount.is_finite() and amount >= 0):
+                return self._invalid("INVALID_PRICE", f"price={price}")
+        except InvalidOperation:
+            return self._invalid("INVALID_PRICE", f"price={price}")
+
+        return Row(
+            True, None, None,
+            event_time, event_type, product_id,
+            category_id, category_code, brand,
+            None if price is None else str(price),
+            user_id, user_session, event_id,
+        )
+
+    @staticmethod
+    def _coerce_str(value):
+        if value is None or isinstance(value, str):
+            return value
+        if isinstance(value, (dict, list)):
+            return None
+        return str(value)
+
+    @staticmethod
+    def _invalid(reason_code: str, failure_detail: str):
+        return Row(False, reason_code, failure_detail, None, None, None, None, None, None, None, None, None, None)
+
+
+class RecordDlqMetric(ScalarFunction):
+    """DLQ로 빠진 레코드 수만 세는 부수효과 UDF. DLQ 분기 SELECT에서만 호출한다."""
+
+    def open(self, function_context):
+        metrics = function_context.get_metric_group().add_group("business")
+        self.dlq_counter = metrics.counter("dlq_count")
+
+    def eval(self, reason_code):
+        self.dlq_counter.inc()
+        return reason_code
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--topic", required=True)
+    parser.add_argument("--topic", required=True, choices=ALLOWED_TOPICS)
     parser.add_argument("--bootstrap-servers", default="kafka:29092")
     parser.add_argument("--raw-path", required=True)
     parser.add_argument("--checkpoint-interval-ms", type=int, default=30_000)
@@ -56,23 +172,18 @@ def parse_args() -> argparse.Namespace:
 def build_table_env(checkpoint_interval_ms: int) -> StreamTableEnvironment:
     env = StreamExecutionEnvironment.get_execution_environment()
     env.enable_checkpointing(checkpoint_interval_ms)
-    return StreamTableEnvironment.create(env)
+    t_env = StreamTableEnvironment.create(env)
+    # StatementSet의 두 INSERT가 동일한 Kafka source를 공유하도록 명시한다.
+    t_env.get_config().set("table.optimizer.reuse-sub-plan-enabled", "true")
+    t_env.get_config().set("table.optimizer.reuse-source-enabled", "true")
+    return t_env
 
 
 def create_source_table(t_env: StreamTableEnvironment, topic: str, bootstrap_servers: str) -> None:
     consumer_group = f"raw-zone-consumer-{topic.replace('.', '-')}"
     t_env.execute_sql(f"""
         CREATE TABLE kafka_source (
-            event_time STRING,
-            event_type STRING,
-            product_id STRING,
-            category_id STRING,
-            category_code STRING,
-            brand STRING,
-            price STRING,
-            user_id STRING,
-            user_session STRING,
-            event_id STRING,
+            payload STRING,
             kafka_partition INT METADATA FROM 'partition' VIRTUAL,
             kafka_offset BIGINT METADATA FROM 'offset' VIRTUAL,
             kafka_timestamp TIMESTAMP_LTZ(3) METADATA FROM 'timestamp' VIRTUAL
@@ -81,15 +192,14 @@ def create_source_table(t_env: StreamTableEnvironment, topic: str, bootstrap_ser
             'topic' = '{topic}',
             'properties.bootstrap.servers' = '{bootstrap_servers}',
             'properties.group.id' = '{consumer_group}',
-            'format' = 'json',
-            'json.ignore-parse-errors' = 'true',
+            'format' = 'raw',
             'scan.startup.mode' = 'group-offsets',
             'properties.auto.offset.reset' = 'earliest'
         )
     """)
 
 
-def create_sink_table(t_env: StreamTableEnvironment, raw_path: str) -> None:
+def create_sink_tables(t_env: StreamTableEnvironment, raw_path: str, bootstrap_servers: str) -> None:
     t_env.execute_sql(f"""
         CREATE TABLE raw_zone_sink (
             event_time STRING,
@@ -119,27 +229,75 @@ def create_sink_table(t_env: StreamTableEnvironment, raw_path: str) -> None:
         )
     """)
 
+    t_env.execute_sql(f"""
+        CREATE TABLE dlq_sink (
+            original_payload STRING,
+            original_topic STRING,
+            kafka_partition INT,
+            kafka_offset BIGINT,
+            kafka_timestamp TIMESTAMP_LTZ(3),
+            failure_stage STRING,
+            reason_code STRING,
+            failure_detail STRING,
+            failed_at TIMESTAMP_LTZ(3)
+        ) WITH (
+            'connector' = 'kafka',
+            'topic' = '{DLQ_TOPIC}',
+            'properties.bootstrap.servers' = '{bootstrap_servers}',
+            'format' = 'json',
+            'sink.delivery-guarantee' = 'at-least-once'
+        )
+    """)
 
-def register_business_metric_udf(t_env: StreamTableEnvironment, zone_name: str) -> None:
+
+def register_functions(t_env: StreamTableEnvironment, zone_name: str) -> None:
     is_purchase_topic = zone_name == "purchase"
     t_env.create_temporary_function(
         "record_business_metric",
         udf(BusinessMetricFunction(is_purchase_topic), result_type=DataTypes.STRING()),
     )
+    t_env.create_temporary_function(
+        "parse_and_validate",
+        udf(ParseAndValidate(zone_name), result_type=PARSED_ROW_TYPE),
+    )
+    t_env.create_temporary_function(
+        "record_dlq_metric",
+        udf(RecordDlqMetric(), result_type=DataTypes.STRING()),
+    )
 
 
-def run_insert(t_env: StreamTableEnvironment) -> None:
+def run_inserts(t_env: StreamTableEnvironment, topic: str) -> None:
     t_env.execute_sql("""
+        CREATE TEMPORARY VIEW parsed_source AS
+        SELECT
+            payload, kafka_partition, kafka_offset, kafka_timestamp,
+            parse_and_validate(payload) AS v
+        FROM kafka_source
+    """)
+
+    stmt_set = t_env.create_statement_set()
+    stmt_set.add_insert_sql("""
         INSERT INTO raw_zone_sink
         SELECT
-            event_time, record_business_metric(event_type, price) AS event_type,
-            product_id, category_id, category_code,
-            brand, price, user_id, user_session, event_id,
+            v.event_time, record_business_metric(v.event_type, v.price) AS event_type,
+            v.product_id, v.category_id, v.category_code,
+            v.brand, v.price, v.user_id, v.user_session, v.event_id,
             kafka_partition, kafka_offset, kafka_timestamp,
             CURRENT_TIMESTAMP AS ingest_ts,
             DATE_FORMAT(CURRENT_TIMESTAMP, 'yyyy-MM-dd-HH') AS raw_datetime
-        FROM kafka_source
+        FROM parsed_source WHERE v.is_valid
     """)
+    stmt_set.add_insert_sql(f"""
+        INSERT INTO dlq_sink
+        SELECT
+            payload, '{topic}' AS original_topic, kafka_partition, kafka_offset, kafka_timestamp,
+            '{DLQ_FAILURE_STAGE}' AS failure_stage,
+            record_dlq_metric(v.reason_code) AS reason_code,
+            v.failure_detail,
+            CURRENT_TIMESTAMP AS failed_at
+        FROM parsed_source WHERE NOT v.is_valid
+    """)
+    stmt_set.execute()
 
 
 def main() -> None:
@@ -148,9 +306,9 @@ def main() -> None:
     zone_name = args.topic.rsplit(".", 1)[-1]
     t_env.get_config().set("pipeline.name", f"raw_zone_{zone_name}")
     create_source_table(t_env, args.topic, args.bootstrap_servers)
-    create_sink_table(t_env, args.raw_path)
-    register_business_metric_udf(t_env, zone_name)
-    run_insert(t_env)
+    create_sink_tables(t_env, args.raw_path, args.bootstrap_servers)
+    register_functions(t_env, zone_name)
+    run_inserts(t_env, args.topic)
 
 
 if __name__ == "__main__":

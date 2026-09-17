@@ -355,3 +355,70 @@ Airflow가 CLI/UI 내부에서 쓰는 정식 함수(`airflow.models.taskinstance
 
 실제 Flink 잡 취소·복구로 FIRING·RESOLVED 두 케이스 모두 새 문구가 Slack에 그대로
 도달하는 것을 확인했다.
+
+## Flink 레코드 단위 DLQ 도입 — 2026-09-16~17
+
+`code/pipelines/raw_zone_consumer.py`가 `format=json` + `json.ignore-parse-errors=true`로
+Kafka를 읽어, JSON 파싱에 실패한 레코드가 SQL에 도달하기도 전에 커넥터(정확히는 JSON
+역직렬화 계층) 단에서 조용히 사라지는 문제가 있었다. `format=raw`로 원문을 문자열
+그대로 받고 직접 파싱·검증한 뒤 `StatementSet`으로 정상은 Bronze, 실패는
+`ecommerce.events.dlq`로 분기하도록 바꿨다.
+
+### StatementSet이 Kafka source를 공유하는지 사전 검증 (가장 위험한 전제)
+
+격리된 테스트 토픽(운영과 동일한 3파티션)에서 정상 10건 + 실패 4건을 섞어 검증했다.
+
+- `stmt_set.explain()`의 **"Optimized Execution Plan"** 섹션에서 `TableSourceScan`이
+  정확히 1개, 두 INSERT 분기 모두 `Reused(reference_id=[1])`로 참조 — AST/물리 plan
+  섹션까지 합쳐서 세면 여러 번 나오므로 반드시 마지막 섹션만 봐야 한다
+- 실제로 흘려서 `source offset 집합 = ok offset 집합 ∪ dlq offset 집합`,
+  `ok ∩ dlq = 공집합` 확인 (건수 비교가 아니라 집합 비교 — at-least-once + 체크포인트
+  재생으로 같은 sink 안에서 offset이 중복될 수 있어 건수만 보면 오판할 수 있음)
+- 실행 중 Flink task 이름을 보면 source부터 Bronze/DLQ writer까지 물리적으로 하나의
+  task chain으로 융합돼 있어 런타임에서도 공유가 재확인됨
+
+Flink 1.19.3 + flink-sql-connector-kafka 3.2.0-1.19 조합에서 위 전제가 실측으로
+확정돼, DataStream+side output이나 별도 group.id 같은 우회 없이 Table API 구조를
+그대로 유지했다. `table.optimizer.reuse-sub-plan-enabled`/`reuse-source-enabled`는
+현재 기본값도 true지만, 향후 Flink 업그레이드가 기본값을 바꿔도 조용히 깨지지 않도록
+코드에 명시했다.
+
+### 실제로 재현해서 잡은 회귀
+
+- **Row 인코딩**: UDF가 ROW 타입을 반환할 때 일반 Python 튜플을 쓰면
+  `AttributeError: 'tuple' object has no attribute 'get_fields_by_names'`로 job이
+  죽는다. `pyflink.table.Row`를 써야 한다.
+- **타입 불일치로 인한 job 크래시**: `product_id`처럼 STRING 계약인 필드가 JSON에서
+  숫자(`"product_id": 1001`)로 오면 `AttributeError: 'int' object has no attribute
+  'encode'`로 Beam Row 코더 단계에서 job이 죽는다 — UDF의 `try/except`로는 못 잡는다
+  (코더 직렬화가 UDF `eval()` 밖에서 일어남). STRING Row 슬롯에 들어갈 값은 UDF
+  안에서 미리 명시적으로 문자열 강제 변환해야 한다(dict/list처럼 강제 변환이 의미를
+  바꾸는 타입은 누락으로 취급). 두 경우 모두 격리된 테스트 토픽으로 직접 재현해서
+  고친 뒤 재검증했다.
+
+### DLQ 토픽은 저장소에 프로비저닝 코드가 없다 — 수동 생성 필수
+
+`ecommerce.events.dlq`는 이 환경에서 수동으로 만든 것이라 새 환경(다른 macOS, CI 등)에는
+없다. auto-create에 맡기면 브로커 기본 `log.retention.hours=168`(7일)로 생겨 DLQ의
+"유일한 사본" 요구를 어긴다. **job 배포 전에 반드시 먼저** 아래로 만든다.
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic ecommerce.events.dlq --partitions 3 --replication-factor 1 \
+  --config retention.ms=2592000000 --config cleanup.policy=delete
+
+# 검증 - Dynamic configs에 retention.ms=2592000000이 오버라이드로 찍혀야 한다
+docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --describe --topic ecommerce.events.dlq
+```
+
+원본 3개 토픽(`ecommerce.view/cart/purchase`)도 여전히 프로비저닝 코드가 없고
+auto-create에 의존한다 — 이번 범위 밖이라 손대지 않았다. 실측 결과 이 토픽들은
+브로커 기본 `num.partitions=1`이 아니라 3파티션인데, 그걸 만든 코드도 저장소에 없다
+(과거 수동 작업으로 추정). 다음에 토픽 프로비저닝을 정식화할 때 DLQ와 같이 묶을 후보다.
+
+### 통합 DLQ 토픽 1개로 결정 (토픽별 3개 대신)
+
+`original_topic` 컬럼으로 출처를 구분할 수 있고, 단일 브로커 환경이라 토픽을 나눠도
+격리 이점이 없다(이미 브로커를 공유함). retention·운영 정책도 동일해서 나눌 이유가
+없다.
