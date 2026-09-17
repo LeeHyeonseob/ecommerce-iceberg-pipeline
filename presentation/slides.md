@@ -67,7 +67,9 @@ Kaggle *eCommerce behavior data from multi category store*
 
 ![w:1150](../assets/grafana_streaming_operations.png)
 
-Kafka·Flink 상태를 실시간 감시하고, 임계값 위반이 지속되면 Slack으로 알린다.
+Kafka·Flink 상태와 정상 이벤트 유입 중단을 실시간 감시하고, 임계값 위반이 지속되면 Slack으로
+알린다. Airflow 태스크의 최종 실패도 별도로 Slack에 알린다(Grafana를 거치지 않고 콜백이 직접
+webhook을 호출).
 
 ---
 
@@ -188,6 +190,7 @@ GMV는 `silver_events`, 전환율은 `silver_funnel`에서 계산 — **서로 �
 - Kafka 이벤트를 끊김 없이 소비하고 checkpoint로 offset을 복구
 - topic(view/cart/purchase)별 독립 처리와 parallelism 확장
 - backpressure·checkpoint 상태를 즉시 관측 가능 (Grafana 참고)
+- **입력 계약을 검증**해 정상은 Bronze, 위반은 사유와 함께 DLQ로 분기
 - Bronze 적재와 **실시간 잠정 KPI**(이벤트 유입량, purchase 건수·금액)를 같은 job에서 계산
 
 잠정 KPI는 Bronze 실측과 대조해 정확히 일치함을 검증했다(트러블슈팅 3 참고). 재처리·중복 제거·30일 전환 창은 반영되지 않아 확정 GMV가 아닌 운영 신호로만 쓴다.

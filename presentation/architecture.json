@@ -4,7 +4,7 @@
   "meta": {
     "title": "이커머스 행동 로그 Lakehouse 아키텍처",
     "quality_profile": "showcase",
-    "viewBox": [1680, 760]
+    "viewBox": [1680, 800]
   },
   "components": [
     {
@@ -90,13 +90,27 @@
       "label": "Prometheus · Grafana",
       "pos": [300, 540],
       "size": [190, 64]
+    },
+    {
+      "id": "dlq_topic",
+      "type": "messagebus",
+      "label": "Kafka DLQ",
+      "pos": [590, 300],
+      "size": [140, 64]
+    },
+    {
+      "id": "slack",
+      "type": "external",
+      "label": "Slack",
+      "pos": [500, 680],
+      "size": [140, 64]
     }
   ],
   "boundaries": [
-    {"kind": "region", "label": "Streaming ingestion", "wraps": ["event_bus", "stream_jobs"], "pad": 24},
+    {"kind": "region", "label": "Streaming ingestion", "wraps": ["event_bus", "stream_jobs", "dlq_topic"], "pad": 24},
     {"kind": "region", "label": "Lakehouse processing", "wraps": ["bronze_store", "spark_batch", "silver_tables", "spark_gold", "gold_tables"], "pad": 24},
     {"kind": "region", "label": "Serving", "wraps": ["query_engine", "bi_dashboard"], "pad": 24},
-    {"kind": "region", "label": "Operations", "wraps": ["orchestrator", "observability"], "pad": 24}
+    {"kind": "region", "label": "Operations", "wraps": ["orchestrator", "observability", "slack"], "pad": 24}
   ],
   "connections": [
     {"from": "source_csv", "to": "event_bus", "variant": "emphasis"},
@@ -111,7 +125,10 @@
     {"from": "orchestrator", "to": "spark_batch", "label": "schedule · retry · spark_pool", "variant": "dashed", "route": "orthogonal-v", "fromSide": "top", "toSide": "bottom", "labelAt": [920, 390]},
     {"from": "orchestrator", "to": "spark_gold", "variant": "dashed", "route": "orthogonal-h", "fromSide": "right", "toSide": "left"},
     {"from": "event_bus", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
-    {"from": "stream_jobs", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"}
+    {"from": "stream_jobs", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"from": "stream_jobs", "to": "dlq_topic", "label": "계약 위반", "variant": "dashed", "route": "auto"},
+    {"from": "observability", "to": "slack", "label": "임계값 위반", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"from": "orchestrator", "to": "slack", "label": "최종 실패", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"}
   ],
   "cards": [
     {
@@ -122,7 +139,7 @@
     {
       "dot": "amber",
       "title": "운영 가시성",
-      "items": ["Grafana는 Kafka·Flink 상태를 실시간 감시", "Superset은 커밋 후 데이터·Iceberg 품질 확인", "Airflow가 증분과 유지보수를 직렬화"]
+      "items": ["Flink가 계약 위반 이벤트를 Kafka DLQ로 분기", "Grafana는 Kafka·Flink·유입 중단을 감시해 Slack 알림", "Airflow 최종 실패도 별도 경로로 Slack 알림", "Superset은 커밋 후 데이터·Iceberg 품질 확인"]
     }
   ]
 }
