@@ -193,7 +193,23 @@ docker compose -f infra/docker-compose.superset.yml up -d --build
 - Airflow UI: `http://localhost:8080`
 - Superset UI: `http://localhost:8088`
 
-### 9.2 Iceberg DDL 생성
+### 9.2 Superset 대시보드 가져오기
+
+새 환경에서는 관리자 계정을 만든 뒤 저장소의 Superset export를 ZIP으로 묶어 가져온다.
+
+```bash
+docker exec superset superset fab create-admin \
+  --username admin --firstname Admin --lastname User \
+  --email admin@example.com --password 'CHANGE_ME'
+
+(cd dashboard/superset && zip -r ../superset-dashboard.zip .)
+```
+
+`http://localhost:8088`에 로그인해 **Settings → Import Dashboards**에서
+`dashboard/superset-dashboard.zip`을 가져온다. 가져온 Athena Database 연결의 region,
+workgroup, `s3_staging_dir`는 자신의 AWS 환경에 맞게 확인한다.
+
+### 9.3 Iceberg DDL 생성
 
 최초 1회, `spark-runner`에서 Silver·Gold Iceberg 테이블을 생성한다.
 
@@ -201,7 +217,7 @@ docker compose -f infra/docker-compose.superset.yml up -d --build
 docker exec spark-runner python /opt/project/code/pipelines/operations/run_ddl.py
 ```
 
-### 9.3 수집과 배치 실행
+### 9.4 수집과 배치 실행
 
 Flink Bronze 수집 잡을 제출한 뒤 Producer로 이벤트를 재생한다. 이후 Airflow UI에서 `ecommerce_incremental` DAG를 수동 실행한다.
 
