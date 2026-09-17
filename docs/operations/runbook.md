@@ -388,8 +388,7 @@ must be set}`로 Grafana 컨테이너에 주입하고, `contact-points.yml`은 `
 ### 남은 항목
 
 - JVM heap·GC 관측은 됐으나 해당 패널에 sanity 임계값(색상 표시)은 아직 없음
-- Airflow DAG 실패·재시도 초과 알림, Bronze freshness 임계값 알림은 아직 없음 (Grafana/Kafka/Flink
-  경로만 완료)
+- Bronze freshness 임계값 알림은 아직 없음 (Airflow DAG 실패 알림은 아래 절 참고, 완료)
 - 정밀 임계값은 실제 운영 이력이 쌓인 뒤 재검토
 
 ## Airflow TaskInstance 직접 조작으로 인한 오류 종료 — 2026-09-15
@@ -494,3 +493,46 @@ auto-create에 의존한다 — 이번 범위 밖이라 손대지 않았다. 실
 `original_topic` 컬럼으로 출처를 구분할 수 있고, 단일 브로커 환경이라 토픽을 나눠도
 격리 이점이 없다(이미 브로커를 공유함). retention·운영 정책도 동일해서 나눌 이유가
 없다.
+
+## Airflow 태스크 실패 Slack 알림 도입 — 2026-09-17
+
+Grafana/Kafka/Flink 경로 알림은 있었지만 Airflow DAG 자체의 실행 실패(예: `docker exec
+spark-runner`가 죽거나 Spark 잡이 예외로 끝나는 경우)는 알림 경로가 없었다. 새 Prometheus
+exporter를 추가하는 대신, Airflow의 `on_failure_callback`으로 직접 Slack Incoming Webhook에
+POST하는 방식을 택했다 — 이미 `.env`의 `SLACK_WEBHOOK_URL`이 있고, `requests`가 Airflow 코어의
+전이 의존성으로 이미 설치돼 있어 새 인프라(exporter, statsd 등) 없이 끝난다.
+
+`airflow/dags/dag_utils.py`에 `slack_alert_on_failure(context)`를 추가하고 세 DAG
+(`ecommerce_incremental`, `iceberg_compaction`, `iceberg_cleanup`)의 `default_args`에
+`on_failure_callback`으로 등록했다. `on_failure_callback`은 Airflow 소스(`task_runner.py`의
+`finalize()`)상 `state == FAILED`일 때만 호출되고 `UP_FOR_RETRY`는 별도의 `on_retry_callback`
+경로다 — 재시도마다 알림이 오지 않고 재시도를 모두 소진한 최종 실패에서만 온다는 게 코드로
+확인된다. `requests`는 전이 의존성에만 있던 걸 `infra/airflow/requirements.txt`에 직접 pin으로
+추가했다(버전이 바뀌어도 깨지지 않게).
+
+**실제 실패로 검증했다.** 항상 실패하는 1태스크짜리 임시 DAG(`_test_slack_alert`, `retries=0`)를
+띄워 컨테이너에 반영되는 것과 트리거 후 실패 상태(`airflow dags list-runs`로 `failed` 확인)까지
+본 뒤, 실제 Slack 채널에 다음 형식으로 도달하는 것을 확인했다:
+
+```
+[CRITICAL][FIRING] Airflow 태스크 실패
+{dag_id}.{task_id} (run_id=..., try=1)
+{예외 메시지}
+{ti.log_url}
+```
+
+검증 후 `_test_slack_alert` DAG은 `airflow dags delete`로 메타데이터에서 제거하고 파일도
+삭제했다 — 저장소에는 커밋되지 않는다.
+
+**1차 검증 직후 발견한 문제**: 위 payload를 `{"text": text}`로 단순 전송했더니 Slack에
+메시지는 도달했지만 Grafana Slack 알림에 있는 빨간 색상바가 없었다. Grafana의 Slack
+연동은 알림 상태에 따라 자동으로 attachment 색상바를 붙이는데, 직접 만든 webhook 호출은
+그 처리가 없다. `payload = {"attachments": [{"color": "danger", "text": text}]}`로 바꿔
+Slack의 사전 정의 색상명(`danger`=빨강)을 쓰는 attachment 형식으로 재전송하도록 고쳤고,
+같은 임시 DAG으로 재검증해 실제로 빨간 색상바가 나오는 것을 확인했다(스크린샷 확인, 저장소엔
+보관 안 함).
+
+**주의(내 실수, README는 정확함)**: `docker compose -f infra/docker-compose.airflow.yml up -d`를
+`set -a; source .env; set +a` 없이 바로 실행하면 컴포즈 파일 안의 `${AIRFLOW_POSTGRES_PASSWORD}`
+등이 빈 값으로 치환돼 `airflow-init`이 DB 연결 실패로 죽는다. README의 실행 순서(`source .env`
+먼저)를 그대로 따르면 문제없다 — `docker compose --env-file .env -f ...`로도 우회 가능.

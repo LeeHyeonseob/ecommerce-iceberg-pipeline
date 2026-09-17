@@ -4,7 +4,7 @@ from datetime import timedelta
 import pendulum
 from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sdk import CronTriggerTimetable, dag, task
-from dag_utils import PIPELINE_DIR, parse_last_json
+from dag_utils import PIPELINE_DIR, parse_last_json, slack_alert_on_failure
 
 HEALTH_SCRIPT = f"{PIPELINE_DIR}/operations/health_check.py"
 
@@ -22,7 +22,11 @@ COMPACTION_WEEKDAY = 5
     start_date=pendulum.datetime(2026, 8, 24, tz="UTC"),
     catchup=False,
     max_active_runs=1,
-    default_args={"retries": 2, "retry_delay": timedelta(minutes=5)},
+    default_args={
+        "retries": 2,
+        "retry_delay": timedelta(minutes=5),
+        "on_failure_callback": slack_alert_on_failure,
+    },
     params={"pipeline_env": "prod", "from_datetime": "", "to_datetime": ""},
     tags=["ecommerce", "iceberg", "incremental"],
 )

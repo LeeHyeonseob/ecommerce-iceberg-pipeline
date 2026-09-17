@@ -10,7 +10,7 @@ from datetime import timedelta
 
 import pendulum
 from airflow.sdk import dag, task
-from dag_utils import PIPELINE_DIR, parse_last_json
+from dag_utils import PIPELINE_DIR, parse_last_json, slack_alert_on_failure
 
 ALL_TABLES = [
     "glue.ecommerce_lakehouse.silver_events",
@@ -30,7 +30,11 @@ ALL_TABLES = [
     start_date=pendulum.datetime(2026, 9, 13, tz="UTC"),
     catchup=False,
     max_active_runs=1,
-    default_args={"retries": 1, "retry_delay": timedelta(minutes=5)},
+    default_args={
+        "retries": 1,
+        "retry_delay": timedelta(minutes=5),
+        "on_failure_callback": slack_alert_on_failure,
+    },
     params={
         "tables": ",".join(ALL_TABLES),
         "retention_days": 30,

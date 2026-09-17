@@ -10,7 +10,7 @@ from datetime import timedelta
 
 import pendulum
 from airflow.sdk import dag, task
-from dag_utils import PIPELINE_DIR, parse_last_json
+from dag_utils import PIPELINE_DIR, parse_last_json, slack_alert_on_failure
 
 # Gold는 COW overwrite로 파티션당 data file이 1개라 rewrite_data_files가 구조적으로 0건이다.
 SILVER_TABLES = [
@@ -42,7 +42,11 @@ def health_command(label: str) -> str:
     start_date=pendulum.datetime(2026, 9, 13, tz="UTC"),
     catchup=False,
     max_active_runs=1,
-    default_args={"retries": 1, "retry_delay": timedelta(minutes=5)},
+    default_args={
+        "retries": 1,
+        "retry_delay": timedelta(minutes=5),
+        "on_failure_callback": slack_alert_on_failure,
+    },
     params={
         # 일회성 실측 때 한 테이블로 좁히거나 옵션을 주기 위해 노출한다.
         "tables": ",".join(SILVER_TABLES),
