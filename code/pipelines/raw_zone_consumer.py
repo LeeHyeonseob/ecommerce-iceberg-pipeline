@@ -1,32 +1,19 @@
 import argparse
-import json
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import DataTypes, Row, StreamTableEnvironment
 from pyflink.table.udf import ScalarFunction, udf
 
-ALLOWED_TOPICS = ["ecommerce.view", "ecommerce.cart", "ecommerce.purchase"]
+from event_contract import ALLOWED_TOPICS
+from event_validation import ValidationResult, validate_event
+
 DLQ_TOPIC = "ecommerce.events.dlq"
 DLQ_FAILURE_STAGE = "FLINK_VALIDATION"
-EVENT_TIME_FORMAT = "%Y-%m-%d %H:%M:%S %Z"
-REQUIRED_FIELDS = ["event_id", "event_type", "event_time", "user_id", "user_session", "product_id"]
 
 PARSED_ROW_TYPE = DataTypes.ROW([
     DataTypes.FIELD("is_valid", DataTypes.BOOLEAN()),
-    DataTypes.FIELD("reason_code", DataTypes.STRING()),
-    DataTypes.FIELD("failure_detail", DataTypes.STRING()),
-    DataTypes.FIELD("event_time", DataTypes.STRING()),
-    DataTypes.FIELD("event_type", DataTypes.STRING()),
-    DataTypes.FIELD("product_id", DataTypes.STRING()),
-    DataTypes.FIELD("category_id", DataTypes.STRING()),
-    DataTypes.FIELD("category_code", DataTypes.STRING()),
-    DataTypes.FIELD("brand", DataTypes.STRING()),
-    DataTypes.FIELD("price", DataTypes.STRING()),
-    DataTypes.FIELD("user_id", DataTypes.STRING()),
-    DataTypes.FIELD("user_session", DataTypes.STRING()),
-    DataTypes.FIELD("event_id", DataTypes.STRING()),
+    *(DataTypes.FIELD(name, DataTypes.STRING()) for name in ValidationResult._fields[1:]),
 ])
 
 
@@ -69,83 +56,13 @@ class BusinessMetricFunction(ScalarFunction):
 
 
 class ParseAndValidate(ScalarFunction):
-    """원문을 검증하되 예외를 밖으로 던지거나 부수효과를 만들지 않는다."""
+    """순수 검증 결과를 PyFlink Row로 변환한다."""
 
     def __init__(self, expected_event_type: str):
         self.expected_event_type = expected_event_type
 
     def eval(self, payload):
-        try:
-            return self._validate(payload)
-        except Exception as e:
-            return self._invalid("VALIDATION_INTERNAL_ERROR", str(e))
-
-    def _validate(self, payload):
-        try:
-            obj = json.loads(payload)
-        except (json.JSONDecodeError, TypeError) as e:
-            return self._invalid("MALFORMED_JSON", str(e))
-        if not isinstance(obj, dict):
-            return self._invalid("MALFORMED_JSON", "payload is not a JSON object")
-
-        # UDF 밖의 Beam Row 인코딩에서 실패하지 않도록 STRING 필드 타입을 먼저 맞춘다.
-        fields = {
-            name: self._coerce_str(obj.get(name))
-            for name in (*REQUIRED_FIELDS, "category_id", "category_code", "brand")
-        }
-        price = obj.get("price")
-
-        for field in REQUIRED_FIELDS:
-            value = fields[field]
-            if value is None or value.strip() == "":
-                return self._invalid("MISSING_REQUIRED_FIELD", field)
-
-        event_id = fields["event_id"]
-        event_type = fields["event_type"]
-        event_time = fields["event_time"]
-        user_id = fields["user_id"]
-        user_session = fields["user_session"]
-        product_id = fields["product_id"]
-        category_id = fields["category_id"]
-        category_code = fields["category_code"]
-        brand = fields["brand"]
-
-        if event_type != self.expected_event_type:
-            return self._invalid(
-                "EVENT_TYPE_MISMATCH", f"got={event_type} expected={self.expected_event_type}"
-            )
-
-        try:
-            datetime.strptime(event_time, EVENT_TIME_FORMAT)
-        except (ValueError, TypeError) as e:
-            return self._invalid("INVALID_EVENT_TIME", str(e))
-
-        try:
-            amount = Decimal(str(price))
-            if not (amount.is_finite() and amount >= 0):
-                return self._invalid("INVALID_PRICE", f"price={price}")
-        except InvalidOperation:
-            return self._invalid("INVALID_PRICE", f"price={price}")
-
-        return Row(
-            True, None, None,
-            event_time, event_type, product_id,
-            category_id, category_code, brand,
-            None if price is None else str(price),
-            user_id, user_session, event_id,
-        )
-
-    @staticmethod
-    def _coerce_str(value):
-        if value is None or isinstance(value, str):
-            return value
-        if isinstance(value, (dict, list)):
-            return None
-        return str(value)
-
-    @staticmethod
-    def _invalid(reason_code: str, failure_detail: str):
-        return Row(False, reason_code, failure_detail, None, None, None, None, None, None, None, None, None, None)
+        return Row(*validate_event(payload, self.expected_event_type))
 
 
 class RecordDlqMetric(ScalarFunction):

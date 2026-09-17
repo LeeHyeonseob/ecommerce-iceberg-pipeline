@@ -2,6 +2,7 @@ import argparse
 import csv
 import gzip
 import hashlib
+import json
 import logging
 import os
 import threading
@@ -11,6 +12,8 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 from kafka import KafkaProducer
+
+from event_contract import EVENT_FIELDS, EVENT_TIME_FORMAT, TOPIC_BY_EVENT_TYPE
 
 load_dotenv()
 
@@ -26,25 +29,6 @@ logger = logging.getLogger("kafka_producer")
 
 DEFAULT_CSV_PATH = os.environ.get("CSV_PATH")
 DEFAULT_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-
-TOPIC_MAP = {
-    "view": "ecommerce.view",
-    "cart": "ecommerce.cart",
-    "purchase": "ecommerce.purchase",
-}
-
-CSV_COLUMNS = [
-    "event_time",
-    "event_type",
-    "product_id",
-    "category_id",
-    "category_code",
-    "brand",
-    "price",
-    "user_id",
-    "user_session",
-]
-
 
 @dataclass
 class ProducerArgs:
@@ -79,12 +63,12 @@ def read_events(csv_path: str, limit: int | None = None):
 
 
 def make_event_id(row: dict) -> str:
-    raw = "|".join(row.get(col, "") for col in CSV_COLUMNS)
+    raw = "|".join(row.get(col, "") for col in EVENT_FIELDS)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def parse_event_time(value: str) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%d %H:%M:%S %Z")
+    return datetime.strptime(value, EVENT_TIME_FORMAT)
 
 
 def compute_delay_seconds(prev_event_time: datetime | None, curr_event_time: datetime, speed: float) -> float:
@@ -109,9 +93,7 @@ def build_producer(bootstrap_servers: str) -> KafkaProducer:
 
 
 def to_json(row: dict, event_id: str) -> str:
-    import json
-
-    payload = {col: row.get(col) for col in CSV_COLUMNS}
+    payload = {col: row.get(col) for col in EVENT_FIELDS}
     payload["event_id"] = event_id
     return json.dumps(payload, ensure_ascii=False)
 
@@ -173,7 +155,7 @@ def main() -> None:
 
     for row in read_events(args.csv_path, limit=args.limit):
         event_type = row["event_type"]
-        topic = TOPIC_MAP.get(event_type)
+        topic = TOPIC_BY_EVENT_TYPE.get(event_type)
         if topic is None:
             logger.warning(f"알 수 없는 event_type={event_type!r}, skip")
             continue

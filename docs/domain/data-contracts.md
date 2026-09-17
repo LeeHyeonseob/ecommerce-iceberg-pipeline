@@ -22,7 +22,8 @@
 
 ## 입력 레코드 계약과 DLQ
 
-Kafka → Bronze 진입 시 `code/pipelines/raw_zone_consumer.py`의 `ParseAndValidate`가 검증한다.
+Kafka → Bronze 진입 시 `code/pipelines/event_validation.py`의 `validate_event`가 검증하고,
+`raw_zone_consumer.py`의 UDF가 결과를 PyFlink Row로 변환한다.
 실패한 레코드는 Bronze에 넣지 않고 `ecommerce.events.dlq`(단일 토픽, 30일 retention)로 보낸다.
 
 - 필수값: `event_id`, `event_type`, `event_time`, `user_id`, `user_session`, `product_id` (공백만 있는 문자열도 누락으로 취급)

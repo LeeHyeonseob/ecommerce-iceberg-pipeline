@@ -1,61 +1,21 @@
-"""PyFlink 심볼을 스텁으로 대체한 입력 계약 회귀 테스트.
-
-Row 인코딩과 StatementSet 분기는 실제 Flink 통합 검증으로 별도 확인한다.
-"""
+"""PyFlink 런타임과 독립적인 입력 계약 회귀 테스트."""
+from pathlib import Path
 import sys
-import types
 import unittest
 from unittest import mock
 
-
-def _install_pyflink_stubs() -> None:
-    if "pyflink" in sys.modules:
-        return
-
-    class _Row(tuple):
-        def __new__(cls, *args):
-            return super().__new__(cls, args)
-
-    class _ScalarFunction:
-        pass
-
-    def _udf(func, result_type=None):
-        return func
-
-    class _DataTypes:
-        def __getattr__(self, _name):
-            return lambda *a, **k: None
-
-    pyflink = types.ModuleType("pyflink")
-    pyflink.table = types.ModuleType("pyflink.table")
-    pyflink.table.DataTypes = _DataTypes()
-    pyflink.table.Row = _Row
-    pyflink.table.StreamTableEnvironment = object
-    pyflink.table.udf = types.ModuleType("pyflink.table.udf")
-    pyflink.table.udf.ScalarFunction = _ScalarFunction
-    pyflink.table.udf.udf = _udf
-    pyflink.datastream = types.ModuleType("pyflink.datastream")
-    pyflink.datastream.StreamExecutionEnvironment = object
-
-    sys.modules["pyflink"] = pyflink
-    sys.modules["pyflink.table"] = pyflink.table
-    sys.modules["pyflink.table.udf"] = pyflink.table.udf
-    sys.modules["pyflink.datastream"] = pyflink.datastream
+PIPELINES_DIR = Path(__file__).resolve().parents[1] / "code" / "pipelines"
+sys.path.insert(0, str(PIPELINES_DIR))
+import event_validation as validation  # noqa: E402
 
 
-_install_pyflink_stubs()
-
-sys.path.insert(0, "code/pipelines")
-import raw_zone_consumer as m  # noqa: E402
-
-
-class ParseAndValidateTest(unittest.TestCase):
+class ValidateEventTest(unittest.TestCase):
     def setUp(self):
-        self.validate = m.ParseAndValidate("view")
+        self.expected_event_type = "view"
 
     def _reason(self, payload):
-        row = self.validate.eval(payload)
-        return row[0], row[1]  # is_valid, reason_code
+        result = validation.validate_event(payload, self.expected_event_type)
+        return result.is_valid, result.reason_code
 
     def test_valid_event(self):
         payload = (
@@ -99,9 +59,9 @@ class ParseAndValidateTest(unittest.TestCase):
             '"brand": "y", "price": "10.0", "user_id": "u001", '
             '"user_session": "s001", "event_id": 12345}'
         )
-        row = self.validate.eval(payload)
-        self.assertTrue(row[0])
-        product_id, event_id = row[5], row[12]
+        result = validation.validate_event(payload, self.expected_event_type)
+        self.assertTrue(result.is_valid)
+        product_id, event_id = result.product_id, result.event_id
         self.assertEqual(product_id, "1001")
         self.assertEqual(event_id, "12345")
         self.assertIsInstance(product_id, str)
@@ -147,10 +107,10 @@ class ParseAndValidateTest(unittest.TestCase):
             '"brand": "y", "price": "10.0", "user_id": ["a", "b"], '
             '"user_session": "s001", "event_id": "e001"}'
         )
-        row = self.validate.eval(payload)
-        self.assertFalse(row[0])
-        self.assertEqual(row[1], "MISSING_REQUIRED_FIELD")
-        self.assertEqual(row[2], "user_id")
+        result = validation.validate_event(payload, self.expected_event_type)
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.reason_code, "MISSING_REQUIRED_FIELD")
+        self.assertEqual(result.failure_detail, "user_id")
 
     def test_event_type_mismatch(self):
         payload = (
@@ -214,10 +174,10 @@ class ParseAndValidateTest(unittest.TestCase):
 
     def test_never_raises_on_unexpected_exception(self):
         """예상하지 못한 예외도 VALIDATION_INTERNAL_ERROR로 변환한다."""
-        with mock.patch("json.loads", side_effect=RuntimeError("boom")):
-            row = self.validate.eval('{"anything": "here"}')
-        self.assertFalse(row[0])
-        self.assertEqual(row[1], "VALIDATION_INTERNAL_ERROR")
+        with mock.patch("event_validation.json.loads", side_effect=RuntimeError("boom")):
+            result = validation.validate_event('{"anything": "here"}', self.expected_event_type)
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.reason_code, "VALIDATION_INTERNAL_ERROR")
 
 
 if __name__ == "__main__":

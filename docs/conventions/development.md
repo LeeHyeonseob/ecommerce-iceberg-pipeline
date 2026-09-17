@@ -58,4 +58,6 @@ Docker 또는 Airflow 환경을 사용할 수 없어 DAG import 검증을 실행
 - 일별 비율을 기간 평균으로 사용함
 - `ALL`과 세부 category 또는 여러 `dim_type`을 함께 합산함
 
-현재 자동화 테스트 suite는 없다. AWS 의존 통합 검증을 실행하지 못했으면 결과에 명시한다.
+입력 계약은 `tests/test_event_validation.py`에서 단위 테스트한다. 전체 파이프라인을
+자동 재현하는 통합 테스트 suite는 아직 없으므로, AWS 의존 검증을 실행하지 못했으면
+결과에 명시한다.

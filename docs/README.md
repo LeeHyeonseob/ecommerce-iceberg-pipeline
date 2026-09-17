@@ -23,8 +23,10 @@ GMV·카테고리 GMV·SLA는 `silver_events`, 전환 지표는 `silver_funnel`,
 
 | 위치 | 책임 |
 | --- | --- |
+| `code/pipelines/event_contract.py` | Producer·Consumer가 공유하는 토픽·필드·시간 형식 계약 |
+| `code/pipelines/event_validation.py` | PyFlink와 독립적인 입력 레코드 검증 |
 | `code/pipelines/kafka_producer.py` | `event_id` 생성, event type별 토픽 라우팅 |
-| `code/pipelines/raw_zone_consumer.py` | Kafka 메타데이터와 수집 시각을 포함한 Bronze 적재 |
+| `code/pipelines/raw_zone_consumer.py` | Kafka 원문을 검증해 정상은 Bronze, 실패는 DLQ로 분기 |
 | `code/pipelines/bronze_to_silver_events.py` | 정제, dedup, Silver MERGE, 배치 산출물 |
 | `code/pipelines/silver_events_to_funnel.py` | 세션 퍼널과 30일 cross-session 전환 계산 |
 | `code/pipelines/silver_to_gold.py` | 이벤트·퍼널 grain별 KPI와 영향 날짜 재집계 |
