@@ -190,7 +190,7 @@ GMV는 `silver_events`, 전환율은 `silver_funnel`에서 계산 — **서로 �
 - Kafka 이벤트를 끊김 없이 소비하고 checkpoint로 offset을 복구
 - topic(view/cart/purchase)별 독립 처리와 parallelism 확장
 - backpressure·checkpoint 상태를 즉시 관측 가능 (Grafana 참고)
-- **입력 계약을 검증**해 정상은 Bronze, 위반은 사유와 함께 DLQ로 분기
+- **입력 계약을 검증**해 정상은 Bronze, 위반은 사유와 함께 DLQ로 분기(운영자용 CLI로 검증·보정 후 재발행 가능)
 - Bronze 적재와 **실시간 잠정 KPI**(이벤트 유입량, purchase 건수·금액)를 같은 job에서 계산
 
 잠정 KPI는 Bronze 실측과 대조해 정확히 일치함을 검증했다(트러블슈팅 3 참고). 재처리·중복 제거·30일 전환 창은 반영되지 않아 확정 GMV가 아닌 운영 신호로만 쓴다.
@@ -199,6 +199,6 @@ GMV는 `silver_events`, 전환율은 `silver_funnel`에서 계산 — **서로 �
 
 ## 개선 계획
 
-- **DLQ 운영 고도화**: 발생량 알림과 재처리 절차 추가
+- **DLQ 운영 고도화**: 발생량 알림 추가(재처리 CLI는 구현·검증 완료)
 - **메시지 계약 강화**: Producer가 늘면 JSON에서 Avro + Schema Registry로 전환 검토
 - **운영 기준 정교화**: 관측 데이터를 바탕으로 Iceberg 유지보수 주기와 알림 임계값 조정

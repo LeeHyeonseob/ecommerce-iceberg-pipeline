@@ -95,7 +95,7 @@
       "id": "dlq_topic",
       "type": "messagebus",
       "label": "Kafka DLQ",
-      "pos": [590, 300],
+      "pos": [215, 60],
       "size": [140, 64]
     },
     {
@@ -126,7 +126,8 @@
     {"from": "orchestrator", "to": "spark_gold", "variant": "dashed", "route": "orthogonal-h", "fromSide": "right", "toSide": "left"},
     {"from": "event_bus", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
     {"from": "stream_jobs", "to": "observability", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
-    {"from": "stream_jobs", "to": "dlq_topic", "label": "계약 위반", "variant": "dashed", "route": "auto"},
+    {"from": "stream_jobs", "to": "dlq_topic", "label": "계약 위반", "variant": "dashed", "fromSide": "top", "toSide": "right", "route": "auto"},
+    {"from": "dlq_topic", "to": "event_bus", "label": "검증·수정 후 재발행", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v"},
     {"from": "observability", "to": "slack", "label": "임계값 위반", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
     {"from": "orchestrator", "to": "slack", "label": "최종 실패", "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"}
   ],
@@ -139,7 +140,7 @@
     {
       "dot": "amber",
       "title": "운영 가시성",
-      "items": ["Flink가 계약 위반 이벤트를 Kafka DLQ로 분기", "Grafana는 Kafka·Flink·유입 중단을 감시해 Slack 알림", "Airflow 최종 실패도 별도 경로로 Slack 알림", "Superset은 커밋 후 데이터·Iceberg 품질 확인"]
+      "items": ["Flink가 계약 위반 이벤트를 Kafka DLQ로 격리", "운영자용 CLI가 DLQ를 검증·보정 후 원본 토픽에 재발행", "Grafana는 Kafka·Flink·유입 중단을 감시해 Slack 알림", "Airflow 최종 실패도 별도 경로로 Slack 알림"]
     }
   ]
 }
