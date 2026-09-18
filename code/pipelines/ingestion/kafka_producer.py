@@ -1,7 +1,6 @@
 import argparse
 import csv
 import gzip
-import hashlib
 import json
 import logging
 import os
@@ -13,7 +12,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 from kafka import KafkaProducer
 
-from pipelines.common.event_contract import EVENT_FIELDS, EVENT_TIME_FORMAT, TOPIC_BY_EVENT_TYPE
+from pipelines.common.event_contract import (
+    EVENT_FIELDS,
+    EVENT_TIME_FORMAT,
+    TOPIC_BY_EVENT_TYPE,
+    compute_event_id,
+)
 
 load_dotenv()
 
@@ -60,11 +64,6 @@ def read_events(csv_path: str, limit: int | None = None):
             if limit is not None and i >= limit:
                 break
             yield row
-
-
-def make_event_id(row: dict) -> str:
-    raw = "|".join(row.get(col, "") for col in EVENT_FIELDS)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def parse_event_time(value: str) -> datetime:
@@ -166,7 +165,7 @@ def main() -> None:
             time.sleep(delay)
         prev_event_time = curr_event_time
 
-        event_id = make_event_id(row)
+        event_id = compute_event_id(row)
         publish(producer, topic, event_id, row, counter)
         attempted += 1
 

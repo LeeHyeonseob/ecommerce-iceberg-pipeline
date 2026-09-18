@@ -72,6 +72,9 @@ credentials.json
 *.log
 logs/
 
+# === DLQ 재처리 실행 리포트 (감사용 산출물, 소스 아님) ===
+reports/
+
 # === Marp 빌드 산출물 (소스 마크다운만 버전 관리) ===
 presentation/slides.html
 presentation/slides.pdf

@@ -558,3 +558,81 @@ Slack의 사전 정의 색상명(`danger`=빨강)을 쓰는 attachment 형식으
 `set -a; source .env; set +a` 없이 바로 실행하면 컴포즈 파일 안의 `${AIRFLOW_POSTGRES_PASSWORD}`
 등이 빈 값으로 치환돼 `airflow-init`이 DB 연결 실패로 죽는다. README의 실행 순서(`source .env`
 먼저)를 그대로 따르면 문제없다 — `docker compose --env-file .env -f ...`로도 우회 가능.
+
+## DLQ 재처리 도구 도입 — 2026-09-18
+
+`code/pipelines/ingestion/dlq_replayer.py`. 설계 배경과 사유 코드별 보정 가이드는
+`docs/domain/data-contracts.md`의 "DLQ 재처리" 절 참고. 여기서는 실행 절차와 검증 결과만 기록한다.
+
+### 조회·실행 절차
+
+1. **조회(dry-run)**: 대상 DLQ 파티션·offset 범위·원본 topic을 정해 실행한다.
+
+   ```bash
+   PYTHONPATH=code python -m pipelines.ingestion.dlq_replayer \
+     --dlq-partition 0 --from-offset 100 --to-offset 120 \
+     --original-topic ecommerce.purchase --reason-code INVALID_PRICE
+   ```
+
+   `--execute` 없이 실행하면 재발행 없이 각 레코드의 통과/거부 여부만 보고서에 남는다.
+2. 거부된 레코드 중 보정 가능한 것이 있으면 `corrections.jsonl`을 만든다(바뀔 필드만,
+   `{"dlq_partition": 0, "dlq_offset": N, "corrections": {...}}` 한 줄씩 - `dlq_partition`이
+   `--dlq-partition`과 다르면 실행 자체를 거부한다).
+3. **실행**: 같은 명령에 `--corrections corrections.jsonl --execute`를 붙인다.
+4. `reports/dlq-replay-<timestamp>.json`에서 `attempted/replayed/rejected/failed` 집계와
+   레코드별 상세(원래 사유, 원본/재계산 event_id)를 확인한다. `failed`가 1건이라도 있으면
+   프로세스가 종료 코드 1로 끝난다(자동화나 커맨드 결과만 봐도 실패를 놓치지 않게).
+
+### 격리 토픽 통합 검증 — 2026-09-18 완료
+
+`test.dlqreplayer.original`/`test.dlqreplayer.dlq`(1-partition, 실행 후 삭제)를 만들어
+DLQ 스키마와 동일한 형태의 레코드 2건을 직접 발행해 검증했다 — 실제 view/cart/purchase나
+운영 DLQ 토픽은 건드리지 않았다.
+
+- offset 0: `INVALID_PRICE`(가격 음수) → `{"price": "12.50"}` 보정 제공 → 재검증 통과 →
+  원본 토픽에 실제로 재발행됨을 컨슈머로 직접 확인. `event_id`가 보정 전과 다르게
+  재계산됨도 확인
+- offset 1: `MISSING_REQUIRED_FIELD`(user_id 빈 문자열) → 보정 미제공 → 거부
+- dry-run 결과(재발행 없음)와 execute 결과(1건 재발행·1건 거부·0건 실패)가 정확히 일치
+- 같은 corrections로 같은 범위를 다시 실행해도 event_id가 결정론적으로 동일하게
+  재계산됨을 확인(단위 테스트로 커버) - status 저장소 없이도 이중 실행에 안전한 이유
+
+### 리팩터: event_id 계산 로직 공유
+
+`kafka_producer.py`의 `make_event_id`를 `event_contract.compute_event_id`로 옮겨 producer와
+replayer가 동일한 해시 로직을 쓰게 했다. 두 곳이 각자 구현했다면 필드 순서나 None 처리가
+미묘하게 갈라져도 알아채기 어려웠을 것이다.
+
+### 코드 리뷰로 잡은 결함 4건 — 2026-09-18 완료
+
+첫 구현을 코드 기준으로 다시 검토받아 실제 결함 4건을 발견하고 고쳤다. 전부 위 격리
+토픽 통합 검증을 다시 돌려 재확인했다.
+
+1. **`event_id` 재계산이 정규화 전 값을 해싱했다**: `compute_event_id`의 `str(v or "")`가
+   `price=0`처럼 falsy하지만 유효한 값을 빈 문자열로 뭉갰다. 또 `process_record`가 검증
+   *전* 원시값으로 해시를 계산해, `category_code`가 배열로 온 레코드는 검증기가 NULL로
+   취급하는데 해시는 배열의 문자열 표현을 기준으로 계산되는 불일치가 있었다. 순서를
+   "보정 적용 → 검증·정규화 → 정규화된 값으로 event_id 계산 → 정규화된 payload로 재구성"
+   으로 바꾸고, `compute_event_id`도 `is None`만 빈 문자열로 처리하도록 고쳤다. 격리
+   토픽에 `price: 0`(JSON number)인 레코드를 실제로 넣어 재검증 - 재발행된 payload의
+   `price`가 `"0"`으로 정확히 보존됨을 확인했다.
+2. **요청한 offset 범위를 다 못 읽어도 성공처럼 끝났다**: `consumer_timeout_ms` 안에 후속
+   메시지가 없으면 순회가 조용히 끝나, `--to-offset`이 DLQ의 실제 끝보다 크면 일부만
+   읽고 정상 리포트를 만들었다. `fetch_dlq_records`가 시작 전 `beginning_offsets`/
+   `end_offsets`로, 끝난 뒤 `consumer.position()`으로 범위를 다 커버했는지 확인하고,
+   못 채우면 `DlqRangeError`를 던져 재발행 자체를 안 하도록 고쳤다. 격리 토픽에서
+   실제 끝(offset 2)보다 큰 `--to-offset=999`를 요청해 예외가 발생함을 확인했다.
+3. **Kafka 발행 실패가 있어도 프로세스 종료 코드가 0이었다**: `main()`이 `failed` 건수를
+   보지 않고 항상 정상 종료했다. `failed > 0`이면 `RuntimeError`를 던지도록 고쳤다
+   (`rejected`는 검증 규칙대로 걸러진 정상 결과라 실패로 안 침). `producer.flush()`도
+   예외가 나면 리포트 자체가 유실되지 않도록 try/except로 감쌌다(개별 발행은 이미
+   `future.get()`으로 ACK를 확인해서 flush 실패가 성공 건수를 뒤집지는 않는다).
+4. **보정 파일이 DLQ 파티션을 구분하지 않았다**: `corrections.jsonl`이 `dlq_offset`만으로
+   레코드를 식별해, 다른 파티션(예: 파티션 1)에 있는 같은 offset 번호의 레코드와 섞일
+   위험이 있었다. 보정 파일에 `dlq_partition` 필드를 추가하고 `--dlq-partition`과
+   다르면 거부하도록 고쳤다. 중복된 `dlq_offset`도 조용히 덮어쓰지 않고 오류로 처리한다.
+
+단위 테스트 11개를 추가해(정규화 순서, falsy 값, 범위 완전성 3종, 파티션 불일치, 중복
+offset) 45개로 늘렸고, 문서(`data-contracts.md`)의 사유 코드 가이드와 "같은 범위를
+두 번 실행해도 안전하다" 표현도 정정했다 - Silver의 논리적 정확성은 유지되지만 Bronze
+물리적 중복·Flink 잠정 KPI 이중 집계·재처리 비용은 실제로 발생한다.

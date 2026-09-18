@@ -46,6 +46,49 @@ reason code (닫힌 집합, `dlq_sink.reason_code`):
 
 `failure_stage`는 항상 `FLINK_VALIDATION`이다(원본 topic은 `original_topic`에 별도 저장하므로 중복하지 않는다). 여러 검증 단계가 생기기 전까지는 이 값 하나만 쓴다.
 
+## DLQ 재처리
+
+`code/pipelines/ingestion/dlq_replayer.py`가 DLQ에 격리된 레코드를 재검증해 원본 topic으로
+재발행하는 운영자용 CLI다. 자동 스케줄 작업이 아니며, 사람이 DLQ 파티션 1개와 `[from, to)`
+offset 범위 1개를 지정해 매번 명시적으로 실행한다(DLQ topic은 3-partition이라 여러 파티션은
+여러 번 실행). 기본은 `--dry-run`이고 `--execute`를 붙여야 실제 재발행한다.
+
+- 원본 위치(`dlq_sink.kafka_partition`/`kafka_offset`, 즉 실패 당시 view/cart/purchase
+  좌표)와 DLQ 위치(DLQ topic 자체의 partition·offset, Kafka 컨슈머가 주는 값)는 서로 다른
+  개념이다. 재처리 대상 식별·중복 방지의 기준은 후자(`dlq_offset`)다.
+- 보정은 전체 payload 재입력이 아니라 **바뀔 필드만** JSONL로 준다(`{"dlq_partition": 0,
+  "dlq_offset": N, "corrections": {"price": "12.50"}}`). `dlq_partition`은 이번 실행의
+  `--dlq-partition`과 반드시 일치해야 한다(다른 파티션은 offset이 독립적이라, 안 맞으면
+  엉뚱한 레코드에 보정이 적용될 수 있어 값이 다르면 거부한다). 도구 자체는 값을 추측해서
+  채우지 않는다 — 사람이 실제 근거가 있는 값만 넣는다는 전제다. 사유 코드별 보정 가능 여부 가이드:
+
+  | reason_code | 보정 판단 |
+  | --- | --- |
+  | `INVALID_EVENT_TIME` | 대체로 안전 — 포맷 문제일 가능성이 높음 |
+  | `EVENT_TYPE_MISMATCH` | 원본 topic이 맞고 payload의 `event_type` 필드만 잘못됐다는 근거가 있을 때만. 이 도구는 항상 원래 실패했던 topic으로 재발행하므로 topic 자체가 틀렸던 경우(다른 topic으로 다시 라우팅)는 범위 밖 — 그 경우는 수동으로 처리한다 |
+  | `INVALID_PRICE` | 명백한 오타(부호·구분자)면 보정, 원래 값을 모르면 거부 |
+  | `MISSING_REQUIRED_FIELD` | 신원 필드(`user_id` 등)는 다른 데이터로 실제 확인 가능할 때만 |
+  | `MALFORMED_JSON` | 원문 복원이 아니라 추측에 가까워 대체로 거부 |
+  | `VALIDATION_INTERNAL_ERROR` | 데이터가 아니라 검증 로직 버그일 가능성 — 코드 수정 대상 |
+
+- 보정 여부와 무관하게 재처리 대상은 항상 `event_id`를 **검증·정규화가 끝난 값**(문자열 강제
+  변환, dict/list → NULL 등 `validate_event`가 실제로 적용하는 규칙) 기준으로 재계산한다.
+  보정 적용 → 검증·정규화 → 정규화된 9개 필드로 `event_id` 계산 → 정규화된 payload 재구성
+  → 발행 순서를 지킨다. 검증 전 원시값을 그대로 해싱하면 예를 들어 `category_code`가 배열로
+  온 레코드는 검증기가 NULL로 취급하는데 `event_id`는 배열의 문자열 표현으로 계산돼 내용과
+  안 맞게 된다. `event_id = 내용의 해시`라는 불변조건을 유지하기 위함이며, 보정 없이 원문
+  그대로 재검증하는 경우도 예외 없이 재계산한다(드리프트 감지 겸용).
+- 재계산은 순수 함수라 같은 입력을 두 번 재처리해도 같은 `event_id`가 나온다 — 그래서
+  **Silver 결과의 논리적 정확성(멱등성)은** 실수로 같은 범위를 두 번 실행해도 유지된다.
+  다만 이게 "완전히 안전"하다는 뜻은 아니다: Bronze는 append-only라 물리적으로 중복
+  레코드가 쌓이고, Flink 실시간 잠정 KPI는 재발행 건을 다시 집계하며, Kafka·Flink 처리
+  비용도 다시 발생한다. 그래서 이중 실행 자체를 막는 안전장치(파티션·offset 범위 완전성
+  검사, 보정 파일의 `dlq_partition` 일치 검사)를 별도로 둔다.
+- 별도의 "재처리 완료" 상태 저장소(예: compacted Kafka topic)는 두지 않는다. "재발행"과
+  "상태 기록"을 원자적으로 묶을 수 없어 완벽한 중복 방지가 되지 않기 때문이다. 대신 실행마다
+  `reports/dlq-replay-<timestamp>.json`에 상세 감사 기록을 남기고, 최종 중복 방어는 위
+  event_id 재계산의 결정론적 성질과 Silver MERGE에 맡긴다.
+
 ## 퍼널 규칙
 
 - `viewed`, `carted`, `purchased`는 같은 세션 내부 존재 여부다.

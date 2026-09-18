@@ -5,10 +5,9 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import DataTypes, Row, StreamTableEnvironment
 from pyflink.table.udf import ScalarFunction, udf
 
-from pipelines.common.event_contract import ALLOWED_TOPICS
+from pipelines.common.event_contract import ALLOWED_TOPICS, DLQ_TOPIC
 from pipelines.common.event_validation import ValidationResult, validate_event
 
-DLQ_TOPIC = "ecommerce.events.dlq"
 DLQ_FAILURE_STAGE = "FLINK_VALIDATION"
 
 PARSED_ROW_TYPE = DataTypes.ROW([
